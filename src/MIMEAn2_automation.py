@@ -48,6 +48,8 @@ for protein_concentration in proteinConcentrations:
         f.write("selected\t" + str(3) + "\t" + str("<sample_name_1>") + "\t" + str(1) + "\n")
         f.write("nonselected\t" + str(4) + "\t" + str("<sample_name_1>") + "\t" + str(1) + "\n")
 
+    
+
     # run MIMEAn2
     subprocess.call(path_to_MIMEAn2 + " " + first_dir + "/results", shell=True)
 
@@ -61,6 +63,12 @@ for protein_concentration in proteinConcentrations:
             subprocess.call("rm -r results", shell=True)
         # create results directory
         os.mkdir("results")
+        # copy wildtrype count files into second round directory
+        subprocess.call("cp " + first_dir + "/1d/1.txt " + second_dir + "/1d/1.txt", shell=True)
+        subprocess.call("cp " + first_dir + "/2d/1.txt " + second_dir + "/2d/1.txt", shell=True)
+        subprocess.call("cp " + first_dir + "/1d/2.txt " + second_dir + "/1d/2.txt", shell=True)
+        subprocess.call("cp " + first_dir + "/2d/2.txt " + second_dir + "/2d/2.txt", shell=True)
+        
         # create project.txt in results directory
         with open("results/project.txt", 'w') as f:
             f.write("refSeqFile\t" + str(refSeqFile) + "\n")
@@ -75,8 +83,8 @@ for protein_concentration in proteinConcentrations:
             f.write("percOfMaxCov\t" + str(percOfMaxCov) + "\n")
             f.write("joinErrors\t" + str(joinErrors) + "\n")
             f.write("signThreshold\t" + str(signThreshold) + "\n")
-            f.write("selected\t" + str(5) + "\t" + str("<sample_name_1>") + "\t" + str(0) + "\n")
-            f.write("nonselected\t" + str(6) + "\t" + str("<sample_name_1>") + "\t" + str(0) + "\n")
+            f.write("selected\t" + str(1) + "\t" + str("<sample_name_1>") + "\t" + str(0) + "\n")
+            f.write("nonselected\t" + str(2) + "\t" + str("<sample_name_1>") + "\t" + str(0) + "\n")
             f.write("selected\t" + str(7) + "\t" + str("<sample_name_1>") + "\t" + str(1) + "\n")
             f.write("nonselected\t" + str(8) + "\t" + str("<sample_name_1>") + "\t" + str(1) + "\n")
 
