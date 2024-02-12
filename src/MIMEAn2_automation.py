@@ -2,7 +2,7 @@ import subprocess
 import os
 
 path_to_MIMEAn2 = "~/projects/MIMEAn2/build/MIMEAn2"
-working_directory = "/home/user/data_directory/MIME_sim_data/no_epistasis"
+working_directory = "/home/user/data_directory/MIME_sim_data/experimental_conditions"
 
 #parameters
 refSeqFile = "/home/user/data_directory/MIME_sim_data/reference_sequence.fasta"
