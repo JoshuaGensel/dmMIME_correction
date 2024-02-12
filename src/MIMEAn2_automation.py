@@ -2,10 +2,10 @@ import subprocess
 import os
 
 path_to_MIMEAn2 = "~/projects/MIMEAn2/build/MIMEAn2"
-working_directory = "/home/jgen/projects/dmMIME_correction/data/experimental_conditions"
+working_directory = "/home/user/data_directory/MIME_sim_data/no_epistasis"
 
 #parameters
-refSeqFile = "/home/jgen/projects/dmMIME_correction/data/experimental_conditions/ref.fasta"
+refSeqFile = "/home/user/data_directory/MIME_sim_data/reference_sequence.fasta"
 alpha = 0.05
 minimumNrCalls = 50
 minNumberEstimatableKds = 50
