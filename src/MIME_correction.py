@@ -118,6 +118,7 @@ def correct_Kds(path_to_pool_data : str):
     #print number of nans in estimated Kds
     print('number of nans in inferred Kds: ', np.sum(np.isnan(inferred_Kds)))
     # replace nans in inferred Kds with ground truth Kds
+    # TODO resolve this: either use MIMEAn2 without quality control or delete mutations from the frequency matrix
     inferred_Kds[np.isnan(inferred_Kds)] = ground_truth_Kds[np.isnan(inferred_Kds)]
     inferred_Kds = np.log(inferred_Kds)
     ground_truth_Kds = np.log(ground_truth_Kds)
