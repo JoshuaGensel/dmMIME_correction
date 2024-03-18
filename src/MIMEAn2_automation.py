@@ -2,18 +2,18 @@ import subprocess
 import os
 
 path_to_MIMEAn2 = "~/projects/MIMEAn2/build/MIMEAn2"
-working_directory = "/home/user/data_directory/MIME_sim_data/experimental_conditions"
+working_directory = "/home/user/data_directory/MIME_sim_data/no_error_no_epi"
 
 #parameters
 refSeqFile = "/home/user/data_directory/MIME_sim_data/reference_sequence.fasta"
 alpha = 0.05
-minimumNrCalls = 50
-minNumberEstimatableKds = 50
-minSignal2NoiseStrength	= 2
-minMutRate = 4
+minimumNrCalls = 1
+minNumberEstimatableKds = 1
+minSignal2NoiseStrength	= 0.01
+minMutRate = 5
 seqBegin = 1
 seqEnd = 100
-percOfMaxCov = 0.5
+percOfMaxCov = 0.1
 joinErrors = "false"
 signThreshold = 0
 proteinConcentrations = [.1,1,10]

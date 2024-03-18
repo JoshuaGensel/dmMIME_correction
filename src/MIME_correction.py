@@ -58,7 +58,7 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
                     for mut2 in range(3):
                     # if mutations are at the same position
                         if mut1 == mut2:
-                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = 2 # + single_freqs[pos1, mut1+1]
+                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = 1 # + single_freqs[pos1, mut1+1]
                             #TODO figure this behaviour out, 
                             #1 here leads to bad results for high first round concentrations, 
                             #2 here would mean a quadratic relationship between y and x which results in a perfectly straight line, but strong underprediction that could be linearly scaled
