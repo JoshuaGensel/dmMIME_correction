@@ -70,7 +70,7 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
             else:
                 for mut1 in range(3):
                     for mut2 in range(3):
-                        # TODO this part still needs correction of the counts for sequencing errors
+                        # TODO this part still needs correction of the counts for sequencing errors? I think this cancels out because you multiply the counts above and below fraction by the same number
                         if pos1 < pos2:
                             pairwise_counts = counts[np.where((counts[:, 0] == pos1 + 1) & (counts[:, 1] == pos2 + 1))[0], 2:]
                             # get pairwise frequency of the mutation 2 at position 2 and the wildtype at position 1
@@ -242,6 +242,41 @@ def comparison_plot(ground_truth_Kds, inferred_Kds_1, inferred_Kds_2, inferred_K
 
     # set overall title
     fig.suptitle(title + ', mean')
+
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 5))
+
+    # plot log ground truth vs log inferred median Kds of each protein concentration
+    ax1.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_1), label='prot 0.1', alpha=0.5)
+    ax1.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_2), label='prot 1', alpha=0.5)
+    ax1.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_3), label='prot 10', alpha=0.5)
+    ax1.set_xlabel('log ground truth Kd')
+    ax1.set_ylabel('log inferred median Kd')
+    ax1.legend()
+    x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
+    y = x
+    ax1.plot(x, y, color='black', linestyle='--')
+
+    # plot log ground truth vs log corrected median Kds of each protein concentration
+    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_1), label='prot 0.1', alpha=0.5)
+    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_2), label='prot 1', alpha=0.5)
+    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_3), label='prot 10', alpha=0.5)
+    ax2.set_xlabel('log ground truth Kd')
+    ax2.set_ylabel('log corrected median Kd')
+    ax2.legend()
+    x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
+    y = x
+    ax2.plot(x, y, color='black', linestyle='--')
+
+    # plot log ground truth vs log inferred median Kds of each protein concentration
+    ax3.scatter(np.log(ground_truth_Kds), np.log(np.mean([inferred_Kds_1, inferred_Kds_2, inferred_Kds_3], axis=0)), label='inferred', alpha=0.5)
+    ax3.scatter(np.log(ground_truth_Kds), np.log(np.mean([corrected_Kds_1, corrected_Kds_2, corrected_Kds_3], axis=0)), label='corrected', alpha=0.5)
+    ax3.set_xlabel('log ground truth Kd')
+    ax3.set_ylabel('log mean Kd')
+    ax3.legend()
+    x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
+    y = x
+    ax3.plot(x, y, color='black', linestyle='--')
+
 
     plt.show()
 
