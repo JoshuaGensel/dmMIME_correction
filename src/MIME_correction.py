@@ -78,7 +78,7 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
                             # get pairwise frequency of the mutation 2 at position 2 and the mutation 1 at position 1
                             freq_mut2_mut1 = pairwise_counts[0, (mut1+1)*4 + mut2+1]/(pairwise_counts[0, (mut1+1)*4] + pairwise_counts[0, (mut1+1)*4 + 1] + pairwise_counts[0, (mut1+1)*4 + 2] + pairwise_counts[0, (mut1+1)*4 + 3])
 
-                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = freq_mut2_mut1 - freq_mut2_wt1
+                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = freq_mut2_mut1 #- freq_mut2_wt1
 
                         if pos1 > pos2:
                             pairwise_counts = counts[np.where((counts[:, 0] == pos2 + 1) & (counts[:, 1] == pos1 + 1))[0], 2:]
@@ -87,7 +87,7 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
                             # get pairwise frequency of the mutation 2 at position 2 and the mutation 1 at position 1
                             freq_mut2_mut1 = pairwise_counts[0, (mut2+1)*4 + mut1+1]/(pairwise_counts[0, (mut2+1)*4] + pairwise_counts[0, (mut2+1)*4 + 1] + pairwise_counts[0, (mut2+1)*4 + 2] + pairwise_counts[0, (mut2+1)*4 + 3])
 
-                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = freq_mut2_mut1 - freq_mut2_wt1
+                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = freq_mut2_mut1 #- freq_mut2_wt1
 
     print("frequency matrix")
     print(freq_matrix.shape)
