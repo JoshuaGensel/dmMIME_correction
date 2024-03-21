@@ -91,7 +91,16 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
 
     print("frequency matrix")
     print(freq_matrix.shape)
-    print(np.round(freq_matrix[:12, :12], 2))
+    # check if the matrix is full rank
+    if np.linalg.matrix_rank(freq_matrix) < n_mut:
+        print('matrix is not full rank')
+        print('rank of matrix: ', np.linalg.matrix_rank(freq_matrix))
+        print('condition number of matrix: ', np.linalg.cond(freq_matrix))
+    else:
+        print('matrix is full rank')
+        #print('rank of matrix: ', np.linalg.matrix_rank(freq_matrix))
+        print('condition number of matrix: ', np.linalg.cond(freq_matrix))
+    print(np.round(freq_matrix[:9, :9], 2))
 
     return freq_matrix
 
@@ -131,6 +140,7 @@ def correct_Kds(path_to_pool_data : str):
         freq_matrix = construct_frequency_matrix(path_to_pool_data + '/2d/3.txt', path_to_pool_data + '/2d/4.txt')
 
     # solve the equation system
+        # TODO check if using scipy.linalg.solve gives the same results
     corrected_Kds = np.linalg.solve(freq_matrix, inferred_Kds)
 
     return np.exp(corrected_Kds), np.exp(inferred_Kds), np.exp(ground_truth_Kds)

@@ -3,14 +3,14 @@ import os
 from random import *
 
 pathToSim = "~/projects/dmMIMESim/build/bin/MIMESim_prog"
-workingDirectory = "/home/user/data_directory/MIME_sim_data/no_error_no_epi"
+workingDirectory = "/home/user/data_directory/MIME_sim_data/no_epi_high_species"
 
 #parameters
 L = 100
 q = 4
-M = 5000000
+M = 20000000
 p_mut = 0.0225
-p_error = 0.0001
+p_error = 0.0045
 p_effect = 0.5
 p_epistasis = 0.0
 epi_restrict = 1
