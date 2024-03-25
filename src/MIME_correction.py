@@ -140,7 +140,6 @@ def correct_Kds(path_to_pool_data : str):
         freq_matrix = construct_frequency_matrix(path_to_pool_data + '/2d/3.txt', path_to_pool_data + '/2d/4.txt')
 
     # solve the equation system
-        # TODO check if using scipy.linalg.solve gives the same results
     corrected_Kds = np.linalg.solve(freq_matrix, inferred_Kds)
 
     return np.exp(corrected_Kds), np.exp(inferred_Kds), np.exp(ground_truth_Kds)
