@@ -8,7 +8,7 @@ number_samples = 10000
 probability_mutation = 0.2
 
 # generate ground truth from log-normal distribution
-np.random.seed(0)
+# np.random.seed(0)
 ground_truth = np.ones((number_states, number_positions))
 for i in range(1, number_states):
     ground_truth[i] = np.round(np.random.lognormal(mean=0, sigma=1, size=number_positions),1)
@@ -52,14 +52,13 @@ average_background_values = np.zeros((number_states, number_positions))
 # average background values are the average sequence Kd values for sequences with that state at that position divided by the ground truth value of that state at that position divided by the average sequence Kd values for sequences with the default state at that position
 for i in range(number_states):
     for j in range(number_positions):
-        average_background_values[i,j] = gmean(sequence_Kd_values[samples[:,j] == i])/ground_truth[i,j]/gmean(sequence_Kd_values[samples[:,j] == 0])/ground_truth[0,j]
+        average_background_values[i,j] = (gmean(sequence_Kd_values[samples[:,j] == i])/ground_truth[i,j])/(gmean(sequence_Kd_values[samples[:,j] == 0])/ground_truth[0,j])
 
 # print(average_background_values)
         
 print("true_background_values == average_background_values: ", np.allclose(true_background_values, average_background_values))
-
-# TODO: get estimated background values from positionwise average position Kds
-# TODO: test correlation between kd values per position of all sequences
+# print("true_background_values: \n", true_background_values)
+# print("average_background_values: \n", average_background_values)
 
 # get Kd values for all sequences
 Kd_value_list = np.zeros((number_samples, number_positions))
@@ -77,8 +76,11 @@ print(Kd_value_list)
 # plt.show()
 
 # check if geometric mean of sequence Kd values is the same as the product of the geometric mean of the Kd values of the positions
-print('difference between average sequence Kd and product of average position Kds (overall + arbitrary subset):')
-print(gmean(sequence_Kd_values), np.prod([gmean(Kd_value_list[:,j]) for j in range(number_positions)]))
+print('difference between average sequence Kd and product of average position Kds:')
+print(' overall:', gmean(sequence_Kd_values) - np.prod([gmean(Kd_value_list[:,j]) for j in range(number_positions)]))
 # check if this is still true for an arbitrary subset of sequences
 subset = np.random.choice(number_samples, 100)
-print(gmean(sequence_Kd_values[subset]), np.prod([gmean(Kd_value_list[subset,j]) for j in range(number_positions)]))
+print('arbitrary subset:', gmean(sequence_Kd_values[subset]) - np.prod([gmean(Kd_value_list[subset,j]) for j in range(number_positions)]))
+
+
+# IMPORTANT: the difference between average sequence Kd and product of average position Kds is only close to 0 if we use the geometric mean
