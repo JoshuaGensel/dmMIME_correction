@@ -58,12 +58,7 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
                     for mut2 in range(3):
                     # if mutations are at the same position
                         if mut1 == mut2:
-                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = 1 # + single_freqs[pos1, mut1+1]
-                            #TODO figure this behaviour out, 
-                            #1 here leads to bad results for high first round concentrations, 
-                            #2 here would mean a quadratic relationship between y and x which results in a perfectly straight line, but strong underprediction that could be linearly scaled
-                            #adding 1 with the single frequency here looks similiar to just 1, but a little better for high first round concentrations
-                            # only using the single frequency doesn't work at all
+                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = 1
                         else:
                             freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = 0
 
@@ -78,16 +73,17 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
                             # get pairwise frequency of the mutation 2 at position 2 and the mutation 1 at position 1
                             freq_mut2_mut1 = pairwise_counts[0, (mut1+1)*4 + mut2+1]/(pairwise_counts[0, (mut1+1)*4] + pairwise_counts[0, (mut1+1)*4 + 1] + pairwise_counts[0, (mut1+1)*4 + 2] + pairwise_counts[0, (mut1+1)*4 + 3])
 
-                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = freq_mut2_mut1 #- freq_mut2_wt1
+                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = freq_mut2_mut1 - freq_mut2_wt1
 
                         if pos1 > pos2:
+                            # TODO: this is probably wrong, make sure this works 100%
                             pairwise_counts = counts[np.where((counts[:, 0] == pos2 + 1) & (counts[:, 1] == pos1 + 1))[0], 2:]
                             # get pairwise frequency of the mutation 2 at position 2 and the wildtype at position 1
                             freq_mut2_wt1 = pairwise_counts[0, (mut2+1)*4]/(pairwise_counts[0, 0] + pairwise_counts[0, 4] + pairwise_counts[0, 8] + pairwise_counts[0, 12])
                             # get pairwise frequency of the mutation 2 at position 2 and the mutation 1 at position 1
-                            freq_mut2_mut1 = pairwise_counts[0, (mut2+1)*4 + mut1+1]/(pairwise_counts[0, (mut2+1)*4] + pairwise_counts[0, (mut2+1)*4 + 1] + pairwise_counts[0, (mut2+1)*4 + 2] + pairwise_counts[0, (mut2+1)*4 + 3])
+                            freq_mut2_mut1 = pairwise_counts[0, (mut1+1) + (mut2+1)*4]/(pairwise_counts[0, (mut1+1)+0] + pairwise_counts[0, (mut1+1)+4] + pairwise_counts[0, (mut1+1)+8] + pairwise_counts[0, (mut1+1)+12])
 
-                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = freq_mut2_mut1 #- freq_mut2_wt1
+                            freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = freq_mut2_mut1 - freq_mut2_wt1
 
     print("frequency matrix")
     print(freq_matrix.shape)
@@ -137,7 +133,7 @@ def correct_Kds(path_to_pool_data : str):
     if os.path.isfile(path_to_pool_data + '/2d/7.txt') and os.path.isfile(path_to_pool_data + '/2d/8.txt'):
         freq_matrix = construct_frequency_matrix(path_to_pool_data + '/2d/8.txt', path_to_pool_data + '/2d/7.txt')
     else:
-        freq_matrix = construct_frequency_matrix(path_to_pool_data + '/2d/3.txt', path_to_pool_data + '/2d/4.txt')
+        freq_matrix = construct_frequency_matrix(path_to_pool_data + '/2d/4.txt', path_to_pool_data + '/2d/3.txt')
 
     # solve the equation system
     corrected_Kds = np.linalg.solve(freq_matrix, inferred_Kds)
@@ -150,63 +146,63 @@ def comparison_plot(ground_truth_Kds, inferred_Kds_1, inferred_Kds_2, inferred_K
     """
     Plot the comparison of ground truth vs inferred Kds and corrected Kds
     """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+    # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
 
-    # plot ground truth vs inferred median Kds of each protein concentration
-    ax1.scatter(ground_truth_Kds, inferred_Kds_1, label='prot 0.1', alpha=0.5)
-    ax1.scatter(ground_truth_Kds, inferred_Kds_2, label='prot 1', alpha=0.5)
-    ax1.scatter(ground_truth_Kds, inferred_Kds_3, label='prot 10', alpha=0.5)
-    ax1.set_xlabel('ground truth Kd')
-    ax1.set_ylabel('inferred median Kd')
-    ax1.legend()
-    x = np.linspace(0, np.max(ground_truth_Kds), 100)
-    y = x
-    ax1.plot(x, y, color='black', linestyle='--')
+    # # plot ground truth vs inferred median Kds of each protein concentration
+    # ax1.scatter(ground_truth_Kds, inferred_Kds_1, label='prot 0.1', alpha=0.5)
+    # ax1.scatter(ground_truth_Kds, inferred_Kds_2, label='prot 1', alpha=0.5)
+    # ax1.scatter(ground_truth_Kds, inferred_Kds_3, label='prot 10', alpha=0.5)
+    # ax1.set_xlabel('ground truth Kd')
+    # ax1.set_ylabel('inferred median Kd')
+    # ax1.legend()
+    # x = np.linspace(0, np.max(ground_truth_Kds), 100)
+    # y = x
+    # ax1.plot(x, y, color='black', linestyle='--')
 
-    # plot log ground truth vs log inferred median Kds of each protein concentration
-    ax2.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_1), label='prot 0.1', alpha=0.5)
-    ax2.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_2), label='prot 1', alpha=0.5)
-    ax2.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_3), label='prot 10', alpha=0.5)
-    ax2.set_xlabel('log ground truth Kd')
-    ax2.set_ylabel('log inferred median Kd')
-    ax2.legend()
-    x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
-    y = x
-    ax2.plot(x, y, color='black', linestyle='--')
+    # # plot log ground truth vs log inferred median Kds of each protein concentration
+    # ax2.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_1), label='prot 0.1', alpha=0.5)
+    # ax2.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_2), label='prot 1', alpha=0.5)
+    # ax2.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_3), label='prot 10', alpha=0.5)
+    # ax2.set_xlabel('log ground truth Kd')
+    # ax2.set_ylabel('log inferred median Kd')
+    # ax2.legend()
+    # x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
+    # y = x
+    # ax2.plot(x, y, color='black', linestyle='--')
 
-    # set overall title
-    fig.suptitle(title)
+    # # set overall title
+    # fig.suptitle(title)
 
-    plt.show()
+    # plt.show()
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15,5))
+    # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15,5))
 
-    # plot ground truth vs corrected median Kds of each protein concentration
-    ax1.scatter(ground_truth_Kds, corrected_Kds_1, label='prot 0.1', alpha=0.5)
-    ax1.scatter(ground_truth_Kds, corrected_Kds_2, label='prot 1', alpha=0.5)
-    ax1.scatter(ground_truth_Kds, corrected_Kds_3, label='prot 10', alpha=0.5)
-    ax1.set_xlabel('ground truth Kd')
-    ax1.set_ylabel('corrected median Kd')
-    ax1.legend()
-    x = np.linspace(0, np.max(ground_truth_Kds), 100)
-    y = x
-    ax1.plot(x, y, color='black', linestyle='--')
+    # # plot ground truth vs corrected median Kds of each protein concentration
+    # ax1.scatter(ground_truth_Kds, corrected_Kds_1, label='prot 0.1', alpha=0.5)
+    # ax1.scatter(ground_truth_Kds, corrected_Kds_2, label='prot 1', alpha=0.5)
+    # ax1.scatter(ground_truth_Kds, corrected_Kds_3, label='prot 10', alpha=0.5)
+    # ax1.set_xlabel('ground truth Kd')
+    # ax1.set_ylabel('corrected median Kd')
+    # ax1.legend()
+    # x = np.linspace(0, np.max(ground_truth_Kds), 100)
+    # y = x
+    # ax1.plot(x, y, color='black', linestyle='--')
 
-    # plot log ground truth vs log corrected median Kds of each protein concentration
-    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_1), label='prot 0.1', alpha=0.5)
-    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_2), label='prot 1', alpha=0.5)
-    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_3), label='prot 10', alpha=0.5)
-    ax2.set_xlabel('log ground truth Kd')
-    ax2.set_ylabel('log corrected median Kd')
-    ax2.legend()
-    x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
-    y = x
-    ax2.plot(x, y, color='black', linestyle='--')
+    # # plot log ground truth vs log corrected median Kds of each protein concentration
+    # ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_1), label='prot 0.1', alpha=0.5)
+    # ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_2), label='prot 1', alpha=0.5)
+    # ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_3), label='prot 10', alpha=0.5)
+    # ax2.set_xlabel('log ground truth Kd')
+    # ax2.set_ylabel('log corrected median Kd')
+    # ax2.legend()
+    # x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
+    # y = x
+    # ax2.plot(x, y, color='black', linestyle='--')
 
-    # set overall title
-    fig.suptitle(title + ', corrected')
+    # # set overall title
+    # fig.suptitle(title + ', corrected')
 
-    plt.show()
+    # plt.show()
     
     # print squared error for inferred Kds where inferred Kds are not nan
     print('squared error for inferred Kds')
@@ -226,31 +222,31 @@ def comparison_plot(ground_truth_Kds, inferred_Kds_1, inferred_Kds_2, inferred_K
     print(np.round(np.nanmean(np.square(ground_truth_Kds - inferred_Kds_2)) - np.nanmean(np.square(ground_truth_Kds - corrected_Kds_2)), 3))
     print(np.round(np.nanmean(np.square(ground_truth_Kds - inferred_Kds_3)) - np.nanmean(np.square(ground_truth_Kds - corrected_Kds_3)), 3))
 
-    # plot the mean of the inferred Kds and corrected Kds
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+    # # plot the mean of the inferred Kds and corrected Kds
+    # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
 
-    # plot ground truth vs inferred median Kds of each protein concentration
-    ax1.scatter(ground_truth_Kds, np.mean([inferred_Kds_1, inferred_Kds_2, inferred_Kds_3], axis=0), label='inferred', alpha=0.5)
-    ax1.scatter(ground_truth_Kds, np.mean([corrected_Kds_1, corrected_Kds_2, corrected_Kds_3], axis=0), label='corrected', alpha=0.5)
-    ax1.set_xlabel('ground truth Kd')
-    ax1.set_ylabel('mean Kd')
-    ax1.legend()
-    x = np.linspace(0, np.max(ground_truth_Kds), 100)
-    y = x
-    ax1.plot(x, y, color='black', linestyle='--')
+    # # plot ground truth vs inferred median Kds of each protein concentration
+    # ax1.scatter(ground_truth_Kds, np.mean([inferred_Kds_1, inferred_Kds_2, inferred_Kds_3], axis=0), label='inferred', alpha=0.5)
+    # ax1.scatter(ground_truth_Kds, np.mean([corrected_Kds_1, corrected_Kds_2, corrected_Kds_3], axis=0), label='corrected', alpha=0.5)
+    # ax1.set_xlabel('ground truth Kd')
+    # ax1.set_ylabel('mean Kd')
+    # ax1.legend()
+    # x = np.linspace(0, np.max(ground_truth_Kds), 100)
+    # y = x
+    # ax1.plot(x, y, color='black', linestyle='--')
 
-    # plot log ground truth vs log inferred median Kds of each protein concentration
-    ax2.scatter(np.log(ground_truth_Kds), np.log(np.mean([inferred_Kds_1, inferred_Kds_2, inferred_Kds_3], axis=0)), label='inferred', alpha=0.5)
-    ax2.scatter(np.log(ground_truth_Kds), np.log(np.mean([corrected_Kds_1, corrected_Kds_2, corrected_Kds_3], axis=0)), label='corrected', alpha=0.5)
-    ax2.set_xlabel('log ground truth Kd')
-    ax2.set_ylabel('log mean Kd')
-    ax2.legend()
-    x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
-    y = x
-    ax2.plot(x, y, color='black', linestyle='--')
+    # # plot log ground truth vs log inferred median Kds of each protein concentration
+    # ax2.scatter(np.log(ground_truth_Kds), np.log(np.mean([inferred_Kds_1, inferred_Kds_2, inferred_Kds_3], axis=0)), label='inferred', alpha=0.5)
+    # ax2.scatter(np.log(ground_truth_Kds), np.log(np.mean([corrected_Kds_1, corrected_Kds_2, corrected_Kds_3], axis=0)), label='corrected', alpha=0.5)
+    # ax2.set_xlabel('log ground truth Kd')
+    # ax2.set_ylabel('log mean Kd')
+    # ax2.legend()
+    # x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
+    # y = x
+    # ax2.plot(x, y, color='black', linestyle='--')
 
-    # set overall title
-    fig.suptitle(title + ', mean')
+    # # set overall title
+    # fig.suptitle(title + ', mean')
 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 5))
 
@@ -285,6 +281,9 @@ def comparison_plot(ground_truth_Kds, inferred_Kds_1, inferred_Kds_2, inferred_K
     x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
     y = x
     ax3.plot(x, y, color='black', linestyle='--')
+
+    # set overall title
+    fig.suptitle(title + ', log')
 
 
     plt.show()

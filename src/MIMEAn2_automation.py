@@ -2,10 +2,10 @@ import subprocess
 import os
 
 path_to_MIMEAn2 = "~/projects/MIMEAn2/build/MIMEAn2"
-working_directory = "/home/user/data_directory/MIME_sim_data/no_epi_new_prot"
+working_directory = "/home/user/data_directory/MIME_sim_data/small_sequence"
 
 #parameters
-refSeqFile = "/home/user/data_directory/MIME_sim_data/reference_sequence.fasta"
+refSeqFile = "/home/user/data_directory/MIME_sim_data/reference_sequence_small.fasta"
 alpha = 0.05
 minimumNrCalls = 1
 minNumberEstimatableKds = 1
@@ -16,7 +16,7 @@ seqEnd = 100
 percOfMaxCov = 0.1
 joinErrors = "false"
 signThreshold = 0
-proteinConcentrations = [.25,1,4]
+proteinConcentrations = [.1,1,10]
 
 # go into each directory and run MIMEAn2
 for protein_concentration in proteinConcentrations:

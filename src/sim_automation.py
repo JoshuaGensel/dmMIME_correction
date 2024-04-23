@@ -3,18 +3,18 @@ import os
 from random import *
 
 pathToSim = "~/projects/dmMIMESim/build/bin/MIMESim_prog"
-workingDirectory = "/home/user/data_directory/MIME_sim_data/no_epi_new_prot"
+workingDirectory = "/home/user/data_directory/MIME_sim_data/small_sequence"
 
 #parameters
-L = 100
+L = 3
 q = 4
 M = 10000000
-p_mut = 0.0225
-p_error = 0.0045
+p_mut = 0.2
+p_error = 0.001
 p_effect = 0.5
 p_epistasis = 0.0
 epi_restrict = 1
-proteinConcentrations = [.25,1,4]
+proteinConcentrations = [.1,1,10]
 
 #create output directories
 os.mkdir(workingDirectory)
