@@ -2,7 +2,7 @@ import subprocess
 import os
 
 path_to_MIMEAn2 = "~/projects/MIMEAn2/build/MIMEAn2"
-working_directory = "/home/user/data_directory/MIME_sim_data/small_sequence"
+working_directory = "/home/user/data_directory/MIME_sim_data/small_sequence_no_error"
 
 #parameters
 refSeqFile = "/home/user/data_directory/MIME_sim_data/reference_sequence_small.fasta"

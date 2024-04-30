@@ -16,6 +16,41 @@ def get_inferred_Kds(path : str):
     median_mut_U = df['median mut U'].values
     median_Kds = np.vstack((median_mut_C, median_mut_G, median_mut_U)).T.flatten()
     return median_Kds
+
+def correct_pairwise_counts(path_to_pairwise_counts : str, sequencing_error : float):
+    """
+    Corrects the pairwise counts for sequencing errors. This is done by substracting the sequencing error from single mutant counts and substracting double the sequencing error from double mutant counts.
+    """
+    counts = np.loadtxt(path_to_pairwise_counts, skiprows=1, delimiter='\t')
+
+    # initialize corrected counts
+    corrected_counts = np.zeros(counts.shape)
+
+    # columns 0 and 1 are the positions
+    corrected_counts[:, :2] = counts[:, :2]
+
+    # column 2 is double wildtype
+    corrected_counts[:, 2] = counts[:, 2]
+
+    # columns 3, 4, 5, 6, 10, 14 are the single mutants
+    corrected_counts[:, [3, 4, 5, 6, 10, 14]] = np.round(counts[:, [3, 4, 5, 6, 10, 14]] * (1 - sequencing_error))
+
+    # columns 7, 8, 9, 11, 12, 13, 15, 16, 17, 18, 19, 20 are the double mutants
+    corrected_counts[:, [7, 8, 9, 11, 12, 13, 15, 16, 17]] = np.round(counts[:, [7, 8, 9, 11, 12, 13, 15, 16, 17]] * (1 - 2 * sequencing_error))
+
+    # convert to integer
+    corrected_counts = corrected_counts.astype(int)
+
+    # add header
+    header = 'pos1\tpos2\tAA\tAC\tAG\tAT\tCA\tCC\tCG\tCT\tGA\tGC\tGG\tGT\tTA\tTC\tTG\tTT'
+
+    # save corrected counts
+    np.savetxt(path_to_pairwise_counts.replace('.txt', '_corrected.txt'), corrected_counts, delimiter='\t', header=header, comments='', fmt='%i')
+
+    return None
+
+# correct_pairwise_counts('/home/user/data_directory/MIME_sim_data/small_sequence/secondFromProt1/prot1/2d/7.txt', 0.001)
+    
     
 
 def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pairwise_counts_bound : str):
@@ -38,12 +73,12 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
     # first 2 columns for positions stay the same, the rest are the counts
     counts = np.hstack((unbound_counts[:, :2], unbound_counts[:, 2:] + bound_counts[:, 2:]))
 
-    # get single counts
-    single_counts_unbound = np.loadtxt(path_to_pairwise_counts_unbound.replace('2d', '1d'), skiprows=1, delimiter='\t')
-    single_counts_bound = np.loadtxt(path_to_pairwise_counts_bound.replace('2d', '1d'), skiprows=1, delimiter='\t')
+    # # get single counts
+    # single_counts_unbound = np.loadtxt(path_to_pairwise_counts_unbound.replace('2d', '1d'), skiprows=1, delimiter='\t')
+    # single_counts_bound = np.loadtxt(path_to_pairwise_counts_bound.replace('2d', '1d'), skiprows=1, delimiter='\t')
 
-    single_counts = single_counts_unbound[:, 1:] + single_counts_bound[:, 1:]
-    single_freqs = single_counts/single_counts.sum(axis=1)[:, None]
+    # single_counts = single_counts_unbound[:, 1:] + single_counts_bound[:, 1:]
+    # single_freqs = single_counts/single_counts.sum(axis=1)[:, None]
 
 
     # construct the frequency matrix
@@ -65,7 +100,6 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
             else:
                 for mut1 in range(3):
                     for mut2 in range(3):
-                        # TODO this part still needs correction of the counts for sequencing errors? I think this cancels out because you multiply the counts above and below fraction by the same number
                         if pos1 < pos2:
                             pairwise_counts = counts[np.where((counts[:, 0] == pos1 + 1) & (counts[:, 1] == pos2 + 1))[0], 2:]
                             # get pairwise frequency of the mutation 2 at position 2 and the wildtype at position 1
@@ -76,7 +110,6 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
                             freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = freq_mut2_mut1 - freq_mut2_wt1
 
                         if pos1 > pos2:
-                            # TODO: this is probably wrong, make sure this works 100%
                             pairwise_counts = counts[np.where((counts[:, 0] == pos2 + 1) & (counts[:, 1] == pos1 + 1))[0], 2:]
                             # get pairwise frequency of the mutation 2 at position 2 and the wildtype at position 1
                             freq_mut2_wt1 = pairwise_counts[0, (mut2+1)*4]/(pairwise_counts[0, 0] + pairwise_counts[0, 4] + pairwise_counts[0, 8] + pairwise_counts[0, 12])
@@ -128,12 +161,25 @@ def correct_Kds(path_to_pool_data : str):
     inferred_Kds = np.log(inferred_Kds)
     ground_truth_Kds = np.log(ground_truth_Kds)
 
+    # get sequencing error from parameters.txt
+    with open(path_to_pool_data + '/parameters.txt', 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            if 'p_error' in line:
+                sequencing_error = float(line.split('\t')[1])
+                break
+
     # construct frequency matrix
     # check if 7.txt and 8.txt exist
     if os.path.isfile(path_to_pool_data + '/2d/7.txt') and os.path.isfile(path_to_pool_data + '/2d/8.txt'):
-        freq_matrix = construct_frequency_matrix(path_to_pool_data + '/2d/8.txt', path_to_pool_data + '/2d/7.txt')
+        # correct the pairwise counts for sequencing errors
+        correct_pairwise_counts(path_to_pool_data + '/2d/7.txt', sequencing_error)
+        correct_pairwise_counts(path_to_pool_data + '/2d/8.txt', sequencing_error)
+        freq_matrix = construct_frequency_matrix(path_to_pool_data + '/2d/8_corrected.txt', path_to_pool_data + '/2d/7_corrected.txt')
     else:
-        freq_matrix = construct_frequency_matrix(path_to_pool_data + '/2d/4.txt', path_to_pool_data + '/2d/3.txt')
+        correct_pairwise_counts(path_to_pool_data + '/2d/4.txt', sequencing_error)
+        correct_pairwise_counts(path_to_pool_data + '/2d/3.txt', sequencing_error)
+        freq_matrix = construct_frequency_matrix(path_to_pool_data + '/2d/4_corrected.txt', path_to_pool_data + '/2d/3_corrected.txt')
 
     # solve the equation system
     corrected_Kds = np.linalg.solve(freq_matrix, inferred_Kds)
