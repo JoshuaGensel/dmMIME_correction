@@ -6,8 +6,8 @@ from scipy.optimize import minimize
 
 # parameters
 
-number_targets = 1000000
-number_sequences = 2000000
+number_targets = 500000
+number_sequences = 1000000
 sequence_length = 5
 number_states = 4
 p_state_change = 0.2
@@ -30,8 +30,8 @@ def generate_ground_truth(sequence_length : int, number_states : int, p_state_ch
 
 # generate sequences
 
-def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_state_change : float) -> np.ndarray:
-    # get number_sattes and sequence length
+def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_state_change : float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
 
     # generate sequences as random choices over the states
@@ -63,6 +63,28 @@ def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_stat
 
     return unique_sequences, counts, sequence_effects
 
+def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, ground_truth : np.ndarray, p_state_change : float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+    # expand unique sequences to full sequences
+    sequences = np.repeat(unique_sequences, counts, axis=0)
+    # generate number of mutated states
+    number_mutated_states = np.random.binomial(sequences.shape[0]*sequences.shape[1], p_state_change)
+    # generate positions of mutated states
+    position_ids = np.random.choice(sequences.shape[0]*sequences.shape[1], number_mutated_states, replace=False)
+    positions = np.unravel_index(position_ids, sequences.shape)
+    # overwrite mutated states with random 8-bit integers
+    sequences[positions] = np.random.randint(1, ground_truth.shape[0], number_mutated_states, dtype=np.ubyte)
+    print('size full sequence array:', np.round(sequences.nbytes/(1024**2)), 'MB')
+
+    # condense sequences to unique sequences and add counts as last column
+    new_unique_sequences, new_counts = np.unique(sequences, axis=0, return_counts=True)
+
+    # compute effect of each unique sequence
+    # effect of a sequence is the product of the effects of the states per position
+    new_sequence_effects = np.array([np.prod([ground_truth[int(new_unique_sequences[i,j]), j] for j in range(sequences.shape[1])]) for i in range(new_unique_sequences.shape[0])])
+
+    return new_unique_sequences, new_counts, new_sequence_effects
+
 def select_pool(unique_sequences : np.ndarray, counts : np.ndarray, sequence_effects : np.ndarray, number_targets : int) -> tuple[np.ndarray, np.ndarray]:
     # get free target concentration by minimizing the objective function
     def objective_function(x):
@@ -93,6 +115,28 @@ def single_site_count(unique_sequences : np.ndarray, counts : np.ndarray, number
             single_site_counts[i,j] = np.sum(counts[row_indices])
     return single_site_counts.astype(int)
 
+def pairwise_count(unique_sequences : np.ndarray, counts : np.ndarray, number_states : int, sequence_length : int, output_path: str) -> np.ndarray:
+    # open text file for writing
+    f = open(output_path, 'w')
+    #write header
+    f.write('pos1\tpos2\t11\t12\t13\t14\t21\t22\t23\t24\t31\t32\t33\t34\t41\t42\t43\t44\n')
+    
+    for pos1 in range(sequence_length):
+        for pos2 in range(pos1+1, sequence_length):
+            f.write(str(pos1) + '\t' + str(pos2) + '\t')
+            # compute the number of sequences with a given pair of states at each position
+            for state1 in range(number_states):
+                for state2 in range(number_states):
+                    # get the row indices of the unique sequences that have state i at position j
+                    row_indices = np.where((unique_sequences[:,pos1] == state1) & (unique_sequences[:,pos2] == state2))[0]
+                    # sum the counts of these sequences
+                    count = np.sum(counts[row_indices])
+                    f.write(str(count) + '\t')
+            f.write('\n')
+    f.close()
+    return
+
+
 def infer_effects(single_site_counts_selected : np.ndarray, single_site_counts_non_selected : np.ndarray) -> np.ndarray:
     # first divide both matrices by their first row (default state) elementwise
     single_site_counts_selected = single_site_counts_selected / single_site_counts_selected[0]
@@ -103,10 +147,18 @@ def infer_effects(single_site_counts_selected : np.ndarray, single_site_counts_n
     
 
 
-unique_sequences, counts, sequence_effects = generate_sequences(generate_ground_truth(sequence_length, number_states, p_state_change), number_sequences, p_state_change)
+ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change)
+unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change)
 selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets)
-# print(single_site_count(unique_sequences, selected, number_states, sequence_length))
-# print(single_site_count(unique_sequences, non_selected, number_states, sequence_length))
+print(single_site_count(unique_sequences, selected, number_states, sequence_length))
+print(single_site_count(unique_sequences, non_selected, number_states, sequence_length))
 print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
+pairwise_count(unique_sequences, selected, number_states, sequence_length, 'data/test_data/pairwise_count_selected.csv')
+pairwise_count(unique_sequences, non_selected, number_states, sequence_length, 'data/test_data/pairwise_count_non_selected.csv')
+unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, counts, ground_truth, p_state_change)
+selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets)
+print(single_site_count(unique_sequences, selected, number_states, sequence_length))
+print(single_site_count(unique_sequences, non_selected, number_states, sequence_length))
+print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
+
 print('done')
-    
