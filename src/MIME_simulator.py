@@ -2,23 +2,27 @@ import numpy as np
 from scipy.stats import gmean
 from scipy import sparse
 from scipy.optimize import minimize
+import os
 
 
 # parameters
 
 number_targets = 500000
 number_sequences = 1000000
-sequence_length = 5
+sequence_length = 50
 number_states = 4
-p_state_change = 0.2
+p_state_change = 1/sequence_length
+p_effect = 0.5
 
 # generate ground truth
 
-def generate_ground_truth(sequence_length : int, number_states : int, p_state_change : float) -> np.ndarray:
+def generate_ground_truth(sequence_length : int, number_states : int, p_state_change : float, p_effect) -> np.ndarray:
     # default state has value 1
     default_state = np.ones(sequence_length)
     # mutant states are drawn from a log-normal distribution
     mutant_states = np.round(np.random.lognormal(mean=0, sigma=1, size=(number_states-1, sequence_length)),2)
+    # set mutant states to 1 with probability p_effect
+    mutant_states[np.random.rand(number_states-1, sequence_length) < p_effect] = 1
 
     ground_truth = np.row_stack((default_state, mutant_states))
     print(ground_truth)
@@ -145,20 +149,98 @@ def infer_effects(single_site_counts_selected : np.ndarray, single_site_counts_n
     # then divide the non-selected matrix by the selected matrix elementwise
     return single_site_counts_non_selected / single_site_counts_selected
     
+def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, number_targets_1 : int, number_targets_2 : int,p_state_change : float, output_path : str) -> np.ndarray:
+    # get number_states and sequence length
+    number_states, sequence_length = ground_truth.shape
+    # save ground truth
+    os.makedirs(output_path, exist_ok=True)
+    np.savetxt(output_path + 'ground_truth.csv', ground_truth[1:].flatten('F'), delimiter=',', fmt='%f')
+
+    # generate sequences
+    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change)
+    # save unique sequences, counts and sequence effects
+    os.makedirs(output_path + 'round_1', exist_ok=True)
+    np.savetxt(output_path + 'round_1/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_1/counts.csv', counts, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_1/sequence_effects.csv', sequence_effects, delimiter=',', fmt='%f')
+
+    # select sequences
+    selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets_1)
+    # save selected and non-selected sequences
+    os.makedirs(output_path + 'round_1/selected', exist_ok=True)
+    os.makedirs(output_path + 'round_1/non_selected', exist_ok=True)
+    np.savetxt(output_path + 'round_1/selected/counts.csv', selected, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_1/non_selected/counts.csv', non_selected, delimiter=',', fmt='%d')
+
+    # compute single site counts
+    single_site_counts_selected = single_site_count(unique_sequences, selected, number_states, sequence_length)
+    single_site_counts_non_selected = single_site_count(unique_sequences, non_selected, number_states, sequence_length)
+    # save single site counts
+    np.savetxt(output_path + 'round_1/selected/single_site_counts.csv', single_site_counts_selected, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_1/non_selected/single_site_counts.csv', single_site_counts_non_selected, delimiter=',', fmt='%d')
+
+    # compute pairwise counts
+    pairwise_count(unique_sequences, selected, number_states, sequence_length, output_path + 'round_1/selected/pairwise_count.csv')
+    pairwise_count(unique_sequences, non_selected, number_states, sequence_length, output_path + 'round_1/non_selected/pairwise_count.csv')
+
+    # infer effects
+    effects = infer_effects(single_site_counts_selected, single_site_counts_non_selected)
+    # save effects
+    # remove row 0 (default state), flatten and save
+    np.savetxt(output_path + 'round_1/effects.csv', effects[1:].flatten('F'), delimiter=',', fmt='%f')
+
+    # remutate non-selected sequences
+    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, non_selected, ground_truth, p_state_change)
+    # save unique sequences, counts and sequence effects
+    os.makedirs(output_path + 'round_2', exist_ok=True)
+    np.savetxt(output_path + 'round_2/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_2/counts.csv', counts, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_2/sequence_effects.csv', sequence_effects, delimiter=',', fmt='%f')
+
+    # select sequences
+    selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets_2)
+    # save selected and non-selected sequences
+    os.makedirs(output_path + 'round_2/selected', exist_ok=True)
+    os.makedirs(output_path + 'round_2/non_selected', exist_ok=True)
+    np.savetxt(output_path + 'round_2/selected/counts.csv', selected, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_2/non_selected/counts.csv', non_selected, delimiter=',', fmt='%d')
+
+    # compute single site counts
+    single_site_counts_selected = single_site_count(unique_sequences, selected, number_states, sequence_length)
+    single_site_counts_non_selected = single_site_count(unique_sequences, non_selected, number_states, sequence_length)
+    # save single site counts
+    np.savetxt(output_path + 'round_2/selected/single_site_counts.csv', single_site_counts_selected, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_2/non_selected/single_site_counts.csv', single_site_counts_non_selected, delimiter=',', fmt='%d')
+
+    # compute pairwise counts
+    pairwise_count(unique_sequences, selected, number_states, sequence_length, output_path + 'round_2/selected/pairwise_count.csv')
+    pairwise_count(unique_sequences, non_selected, number_states, sequence_length, output_path + 'round_2/non_selected/pairwise_count.csv')
+
+    # infer effects
+    effects = infer_effects(single_site_counts_selected, single_site_counts_non_selected)
+    # save effects
+    np.savetxt(output_path + 'round_2/effects.csv', effects[1:].flatten('F'), delimiter=',', fmt='%f')
+
+    print('done')
+    return
+
+    
 
 
-ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change)
-unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change)
-selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets)
-print(single_site_count(unique_sequences, selected, number_states, sequence_length))
-print(single_site_count(unique_sequences, non_selected, number_states, sequence_length))
-print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
-pairwise_count(unique_sequences, selected, number_states, sequence_length, 'data/test_data/pairwise_count_selected.csv')
-pairwise_count(unique_sequences, non_selected, number_states, sequence_length, 'data/test_data/pairwise_count_non_selected.csv')
-unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, counts, ground_truth, p_state_change)
-selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets)
-print(single_site_count(unique_sequences, selected, number_states, sequence_length))
-print(single_site_count(unique_sequences, non_selected, number_states, sequence_length))
-print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
+# ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change)
+# unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change)
+# selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets)
+# print(single_site_count(unique_sequences, selected, number_states, sequence_length))
+# print(single_site_count(unique_sequences, non_selected, number_states, sequence_length))
+# print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
+# pairwise_count(unique_sequences, selected, number_states, sequence_length, 'data/test_data/pairwise_count_selected.csv')
+# pairwise_count(unique_sequences, non_selected, number_states, sequence_length, 'data/test_data/pairwise_count_non_selected.csv')
+# unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, counts, ground_truth, p_state_change)
+# selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets)
+# print(single_site_count(unique_sequences, selected, number_states, sequence_length))
+# print(single_site_count(unique_sequences, non_selected, number_states, sequence_length))
+# print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
 
-print('done')
+
+simulate_dm_MIME(generate_ground_truth(sequence_length, number_states, p_state_change, p_effect), number_sequences, number_targets, number_targets, p_state_change, 'data/test_data/')
+
