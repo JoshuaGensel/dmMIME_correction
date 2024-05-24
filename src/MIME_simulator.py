@@ -7,12 +7,12 @@ import os
 
 # parameters
 
-number_targets = 500000
 number_sequences = 1000000
-sequence_length = 50
+relative_number_targets = 10
+sequence_length = 3
 number_states = 4
-p_state_change = 1/sequence_length
-p_effect = 0.5
+p_state_change = 2/sequence_length
+p_effect = 0.7
 
 # generate ground truth
 
@@ -22,7 +22,7 @@ def generate_ground_truth(sequence_length : int, number_states : int, p_state_ch
     # mutant states are drawn from a log-normal distribution
     mutant_states = np.round(np.random.lognormal(mean=0, sigma=1, size=(number_states-1, sequence_length)),2)
     # set mutant states to 1 with probability p_effect
-    mutant_states[np.random.rand(number_states-1, sequence_length) < p_effect] = 1
+    mutant_states[np.random.rand(number_states-1, sequence_length) > p_effect] = 1
 
     ground_truth = np.row_stack((default_state, mutant_states))
     print(ground_truth)
@@ -89,19 +89,23 @@ def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, groun
 
     return new_unique_sequences, new_counts, new_sequence_effects
 
-def select_pool(unique_sequences : np.ndarray, counts : np.ndarray, sequence_effects : np.ndarray, number_targets : int) -> tuple[np.ndarray, np.ndarray]:
+def select_pool(unique_sequences : np.ndarray, counts : np.ndarray, sequence_effects : np.ndarray, relative_number_targets : int) -> tuple[np.ndarray, np.ndarray]:
+    # get frequencies from counts
+    frequencies = counts / np.sum(counts)
     # get free target concentration by minimizing the objective function
     def objective_function(x):
-        return np.square(number_targets - np.sum((x*counts)/(x + sequence_effects)) - x)
+        return np.square(relative_number_targets - np.sum(frequencies * x / (x + sequence_effects)) - x)
     x0 = np.array([1])
     res = minimize(objective_function, x0, method='Nelder-Mead')
     free_target_concentration = res.x[0]
     print('free target concentration', free_target_concentration)
     # check if the non-squared objective function is close to zero
-    # print(objective_function(free_target_concentration))
+    print(np.sqrt(objective_function(free_target_concentration)))
 
-    # compute number of selected sequences
-    counts_selected = np.round(free_target_concentration * counts / (free_target_concentration + sequence_effects)).astype(int)
+    # compute number of selected sequences (deterministic rounding to integers )
+    # counts_selected = np.round(free_target_concentration * counts / (free_target_concentration + sequence_effects)).astype(int)
+    # compute the number of selected sequenes as binomial random variable (stochastic)
+    counts_selected = np.random.binomial(counts, (free_target_concentration * counts / (free_target_concentration + sequence_effects))/counts)
 
     # compute number of non-selected sequences
     counts_non_selected = counts - counts_selected
@@ -127,7 +131,7 @@ def pairwise_count(unique_sequences : np.ndarray, counts : np.ndarray, number_st
     
     for pos1 in range(sequence_length):
         for pos2 in range(pos1+1, sequence_length):
-            f.write(str(pos1) + '\t' + str(pos2) + '\t')
+            f.write(str(pos1+1) + '\t' + str(pos2+1) + '\t')
             # compute the number of sequences with a given pair of states at each position
             for state1 in range(number_states):
                 for state2 in range(number_states):
@@ -136,6 +140,9 @@ def pairwise_count(unique_sequences : np.ndarray, counts : np.ndarray, number_st
                     # sum the counts of these sequences
                     count = np.sum(counts[row_indices])
                     f.write(str(count) + '\t')
+            # delete last tab
+            f.seek(f.tell()-1)
+            # write newline
             f.write('\n')
     f.close()
     return
@@ -149,7 +156,7 @@ def infer_effects(single_site_counts_selected : np.ndarray, single_site_counts_n
     # then divide the non-selected matrix by the selected matrix elementwise
     return single_site_counts_non_selected / single_site_counts_selected
     
-def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, number_targets_1 : int, number_targets_2 : int,p_state_change : float, output_path : str) -> np.ndarray:
+def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str) -> np.ndarray:
     # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
     # save ground truth
@@ -165,7 +172,7 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, number_t
     np.savetxt(output_path + 'round_1/sequence_effects.csv', sequence_effects, delimiter=',', fmt='%f')
 
     # select sequences
-    selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets_1)
+    selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, relative_number_targets_1)
     # save selected and non-selected sequences
     os.makedirs(output_path + 'round_1/selected', exist_ok=True)
     os.makedirs(output_path + 'round_1/non_selected', exist_ok=True)
@@ -189,16 +196,18 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, number_t
     # remove row 0 (default state), flatten and save
     np.savetxt(output_path + 'round_1/effects.csv', effects[1:].flatten('F'), delimiter=',', fmt='%f')
 
+    # enrich non-selected pool to be the same number as the initial pool
+    enriched_non_selected_counts = np.round(non_selected * number_sequences / np.sum(non_selected)).astype(int)
+
     # remutate non-selected sequences
-    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, non_selected, ground_truth, p_state_change)
-    # save unique sequences, counts and sequence effects
+    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, enriched_non_selected_counts, ground_truth, p_state_change)
     os.makedirs(output_path + 'round_2', exist_ok=True)
     np.savetxt(output_path + 'round_2/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/counts.csv', counts, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/sequence_effects.csv', sequence_effects, delimiter=',', fmt='%f')
 
     # select sequences
-    selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets_2)
+    selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, relative_number_targets_2)
     # save selected and non-selected sequences
     os.makedirs(output_path + 'round_2/selected', exist_ok=True)
     os.makedirs(output_path + 'round_2/non_selected', exist_ok=True)
@@ -229,18 +238,18 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, number_t
 
 # ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change)
 # unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change)
-# selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets)
+# selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, relative_number_targets)
 # print(single_site_count(unique_sequences, selected, number_states, sequence_length))
 # print(single_site_count(unique_sequences, non_selected, number_states, sequence_length))
 # print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
 # pairwise_count(unique_sequences, selected, number_states, sequence_length, 'data/test_data/pairwise_count_selected.csv')
 # pairwise_count(unique_sequences, non_selected, number_states, sequence_length, 'data/test_data/pairwise_count_non_selected.csv')
 # unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, counts, ground_truth, p_state_change)
-# selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, number_targets)
+# selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, relative_number_targets)
 # print(single_site_count(unique_sequences, selected, number_states, sequence_length))
 # print(single_site_count(unique_sequences, non_selected, number_states, sequence_length))
 # print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
 
 
-simulate_dm_MIME(generate_ground_truth(sequence_length, number_states, p_state_change, p_effect), number_sequences, number_targets, number_targets, p_state_change, 'data/test_data/')
+simulate_dm_MIME(generate_ground_truth(sequence_length, number_states, p_state_change, p_effect), number_sequences, relative_number_targets, relative_number_targets, p_state_change, 'data/test_data/')
 
