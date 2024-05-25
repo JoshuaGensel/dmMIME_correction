@@ -8,8 +8,9 @@ import os
 # parameters
 
 number_sequences = 1000000
-relative_number_targets = 10
-sequence_length = 3
+# relative_number_targets = 10
+sequence_length = 25
+
 number_states = 4
 p_state_change = 2/sequence_length
 p_effect = 0.7
@@ -251,5 +252,12 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
 # print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
 
 
-simulate_dm_MIME(generate_ground_truth(sequence_length, number_states, p_state_change, p_effect), number_sequences, relative_number_targets, relative_number_targets, p_state_change, 'data/test_data/')
+def main():
+    ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change, p_effect)
+    for target1 in [.1, 1, 10]:
+        for target2 in [.1, 1, 10]:
+            simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, '/datadisk/MIME/long_seq/target1_' + str(target1) + '_target2_' + str(target2) + '/')
+
+if __name__ == '__main__':
+    main()
 
