@@ -7,12 +7,12 @@ import os
 
 # parameters
 
-number_sequences = 1000000
+number_sequences = 5000000
 # relative_number_targets = 10
 sequence_length = 25
 
 number_states = 4
-p_state_change = 2/sequence_length
+p_state_change = 5/sequence_length
 p_effect = 0.7
 
 # generate ground truth
@@ -97,7 +97,10 @@ def select_pool(unique_sequences : np.ndarray, counts : np.ndarray, sequence_eff
     def objective_function(x):
         return np.square(relative_number_targets - np.sum(frequencies * x / (x + sequence_effects)) - x)
     x0 = np.array([1])
-    res = minimize(objective_function, x0, method='Nelder-Mead')
+    # define bounds so free target concentration is positive
+    bounds = [(0, None)]
+    # minimize the objective function
+    res = minimize(objective_function, x0, bounds=bounds)
     free_target_concentration = res.x[0]
     print('free target concentration', free_target_concentration)
     # check if the non-squared objective function is close to zero
@@ -256,7 +259,7 @@ def main():
     ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change, p_effect)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
-            simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, '/datadisk/MIME/long_seq/target1_' + str(target1) + '_target2_' + str(target2) + '/')
+            simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, '/datadisk/MIME/high_mut/target1_' + str(target1) + '_target2_' + str(target2) + '/')
 
 if __name__ == '__main__':
     main()
