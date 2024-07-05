@@ -1,95 +1,71 @@
-import subprocess
-import os
-from random import *
+import MIME_simulator
+import MIME_correction
+import numpy as np
 
-pathToSim = "~/projects/dmMIMESim/build/bin/MIMESim_prog"
-workingDirectory = "/datadisk/MIME/wiep_sim/no_error"
+def get_pool_data(name : str, first_round_targets : str, second_round_targets : str):
+    path = f"/datadisk/MIME/{name}/"
+    ground_truth = np.loadtxt(path + f"target1_{first_round_targets}_target2_{second_round_targets}/ground_truth.csv", delimiter=",")
+    round_1 = np.log(np.loadtxt(path + f"target1_{first_round_targets}_target2_{second_round_targets}/round_1/effects.csv", delimiter=","))
+    round_2 = np.log(np.loadtxt(path + f"target1_{first_round_targets}_target2_{second_round_targets}/round_2/effects.csv", delimiter=","))
 
-#parameters
-L = 25
-q = 4
-M = 10000000
-p_mut = 2/L
-p_error = 0.0
-p_effect = 0.7
-p_epistasis = 0.0
-epi_restrict = 1
-proteinConcentrations = [.1,1,10]
+    path_unbound_pairwise_counts_r1 = path + f"target1_{first_round_targets}_target2_{second_round_targets}/round_1/non_selected/pairwise_count.csv"
+    path_unbound_pairwise_counts_r2 = path + f"target1_{first_round_targets}_target2_{second_round_targets}/round_2/non_selected/pairwise_count.csv"
+    path_bound_pairwise_counts_r1 = path + f"target1_{first_round_targets}_target2_{second_round_targets}/round_1/selected/pairwise_count.csv"
+    path_bound_pairwise_counts_r2 = path + f"target1_{first_round_targets}_target2_{second_round_targets}/round_2/selected/pairwise_count.csv"
 
-#create output directories
-os.mkdir(workingDirectory)
-firstRoundDirectories = []
-secondRoundDirectories = []
-secondRoundSubDirectories = []
-for proteinConcentration in proteinConcentrations:
-    #create first round directories
-    firstDir = workingDirectory + "/prot" + str(proteinConcentration)
-    os.mkdir(firstDir)
-    firstRoundDirectories.append(firstDir)
-    
-    #write parameters.txt file for first round
-    paramsFile = firstDir + "/parameters.txt"
-    with open(paramsFile, 'w') as f:
-        f.write("L\t" + str(L) + "\n")
-        f.write("q\t" + str(q) + "\n")
-        f.write("M\t" + str(M) + "\n")
-        f.write("p_mut\t" + str(p_mut) + "\n")
-        f.write("p_error\t" + str(p_error) + "\n")
-        f.write("B_tot\t" + str(proteinConcentration) + "\n")
-        f.write("seed\t" + str(randint(0, 999999)) + "\n")
-        f.write("p_epistasis\t" + str(p_epistasis) + "\n")
-        f.write("p_effect\t" + str(p_effect) + "\n")
-        f.write("epi_restrict\t" + str(epi_restrict) + "\n")
-    
-    #create second round directories
-    secondDir = workingDirectory + "/secondFromProt" + str(proteinConcentration)
-    os.mkdir(secondDir)
-    secondRoundDirectories.append(secondDir)
-    #create second round subdirectories
-    for proteinConcentration2 in proteinConcentrations:
-        subDir = secondDir + "/prot" + str(proteinConcentration2)
-        os.mkdir(subDir)
-        secondRoundSubDirectories.append(subDir)
-        
-        #write parameters.txt file for second round
-        paramsFile = subDir + "/parameters.txt"
-        with open(paramsFile, 'w') as f:
-            f.write("L\t" + str(L) + "\n")
-            f.write("q\t" + str(q) + "\n")
-            f.write("M\t" + str(M) + "\n")
-            f.write("p_mut\t" + str(p_mut) + "\n")
-            f.write("p_error\t" + str(p_error) + "\n")
-            f.write("B_tot\t" + str(proteinConcentration2) + "\n")
-            f.write("seed\t" + str(randint(0, 999999)) + "\n")
-            f.write("p_epistasis\t" + str(p_epistasis) + "\n")
-            f.write("p_effect\t" + str(p_effect) + "\n")
-            f.write("epi_restrict\t" + str(epi_restrict) + "\n")
+    frequency_matrix_r1 = MIME_correction.construct_frequency_matrix(path_unbound_pairwise_counts_r1, path_bound_pairwise_counts_r1)
+    frequency_matrix_r2 = MIME_correction.construct_frequency_matrix(path_unbound_pairwise_counts_r2, path_bound_pairwise_counts_r2)
 
-#run first simulation
-command = pathToSim + " --working-dir " + firstRoundDirectories[0]
-subprocess.call(command, shell=True)
+    corrected_round_1 = np.linalg.solve(frequency_matrix_r1, round_1)
+    corrected_round_2 = np.linalg.solve(frequency_matrix_r2, round_2)
 
-#copy single_kds.txt and pairwise_epistasis.txt to all other directories
-for i in range(1, len(firstRoundDirectories)):
-    command = "cp " + firstRoundDirectories[0] + "/single_kds.txt " + firstRoundDirectories[i]
-    subprocess.call(command, shell=True)
-    command = "cp " + firstRoundDirectories[0] + "/pairwise_epistasis.txt " + firstRoundDirectories[i]
-    subprocess.call(command, shell=True)
-    
-    #run simulations for rest of first round
-    command = pathToSim + " --working-dir " + firstRoundDirectories[i] + " --read-gt"
-    subprocess.call(command, shell=True)
-    
-#run second round simulations
-for i in range(0, len(secondRoundSubDirectories)):
-    #copy single_kds.txt and pairwise_epistasis.txt to all other directories
-    command = "cp " + firstRoundDirectories[0] + "/single_kds.txt " + secondRoundSubDirectories[i]
-    subprocess.call(command, shell=True)
-    command = "cp " + firstRoundDirectories[0] + "/pairwise_epistasis.txt " + secondRoundSubDirectories[i]
-    subprocess.call(command, shell=True)
-    
-for i in range(0, len(secondRoundSubDirectories)):
-    for pC in proteinConcentrations:
-        if f'FromProt{pC}/' in secondRoundSubDirectories[i]:
-            command = pathToSim + " --working-dir " + secondRoundSubDirectories[i] + " --previous-dir " + firstRoundDirectories[proteinConcentrations.index(pC)]
-            subprocess.call(command, shell=True)
+    return ground_truth, round_1, round_2, corrected_round_1, corrected_round_2
+
+def get_experiment_data(name :str):
+    ground_truths = []
+    round_1s = []
+    round_2s = []
+    corrected_round_1s = []
+    corrected_round_2s = []
+
+    for first_round_targets in ["0.1", "1", "10"]:
+        for second_round_targets in ["0.1", "1", "10"]:
+            ground_truth, round_1, round_2, corrected_round_1, corrected_round_2 = get_pool_data(name, first_round_targets, second_round_targets)
+            ground_truths.append(ground_truth)
+            round_1s.append(round_1)
+            round_2s.append(round_2)
+            corrected_round_1s.append(corrected_round_1)
+            corrected_round_2s.append(corrected_round_2)
+
+    return ground_truth, round_1s, round_2s, corrected_round_1s, corrected_round_2s
+
+def fit_slopes(ground_truth, round_1s, round_2s, corrected_round_1s, corrected_round_2s):
+    slopes_r1 = []
+    corrected_slopes_r1 = []
+
+    for i in range(9):
+        #fit slopes for ground truth vs round_1s with np.polyfit
+        slope, _ = np.polyfit(ground_truth, round_1s[i], 1)
+        slopes_r1.append(slope)
+
+        #fit slopes for ground truth vs corrected_round_1s with np.polyfit
+        corrected_slope, _ = np.polyfit(ground_truth, corrected_round_1s[i], 1)
+        corrected_slopes_r1.append(corrected_slope)
+
+    slopes_r2 = []
+    corrected_slopes_r2 = []
+
+    for i in range(9):
+        #fit slopes for ground truth vs round_2s with np.polyfit
+        slope, _ = np.polyfit(ground_truth, round_2s[i], 1)
+        slopes_r2.append(slope)
+
+        #fit slopes for ground truth vs corrected_round_2s with np.polyfit
+        corrected_slope, _ = np.polyfit(ground_truth, corrected_round_2s[i], 1)
+        corrected_slopes_r2.append(corrected_slope)
+
+    return slopes_r1, corrected_slopes_r1, slopes_r2, corrected_slopes_r2
+
+def depth_test():
+    lengths = [3,5,7,10,15,20,50]
+    depths = [1000,10000,100000,1000000]

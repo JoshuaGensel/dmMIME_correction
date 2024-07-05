@@ -7,13 +7,13 @@ import os
 
 # parameters
 
-number_sequences = 10000000
-# relative_number_targets = 10
-sequence_length = 20
+# number_sequences = 10000000
+# # relative_number_targets = 10
+# sequence_length = 20
 
-number_states = 4
-p_state_change = 2/sequence_length
-p_effect = 0.7
+# number_states = 4
+# p_state_change = 2/sequence_length
+# p_effect = 0.7
 
 # generate ground truth
 
@@ -35,7 +35,7 @@ def generate_ground_truth(sequence_length : int, number_states : int, p_state_ch
 
 # generate sequences
 
-def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_state_change : float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_state_change : float, pruning : int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
 
@@ -61,6 +61,11 @@ def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_stat
     # print(unique_sequences)
     # print(counts)
 
+    #remove sequences with less than pruning counts
+    if pruning > 0:
+        unique_sequences = unique_sequences[counts >= pruning]
+        counts = counts[counts >= pruning]
+
     # compute effect of each unique sequence
     # effect of a sequence is the product of the effects of the states per position
     sequence_effects = np.array([np.prod([ground_truth[int(unique_sequences[i,j]), j] for j in range(sequence_length)]) for i in range(unique_sequences.shape[0])])
@@ -68,7 +73,7 @@ def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_stat
 
     return unique_sequences, counts, sequence_effects
 
-def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, ground_truth : np.ndarray, p_state_change : float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, ground_truth : np.ndarray, p_state_change : float, pruning : int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     # expand unique sequences to full sequences
     sequences = np.repeat(unique_sequences, counts, axis=0)
@@ -83,6 +88,11 @@ def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, groun
 
     # condense sequences to unique sequences and add counts as last column
     new_unique_sequences, new_counts = np.unique(sequences, axis=0, return_counts=True)
+
+    #remove sequences with less than pruning counts
+    if pruning > 0:
+        new_unique_sequences = new_unique_sequences[new_counts >= pruning]
+        new_counts = new_counts[new_counts >= pruning]
 
     # compute effect of each unique sequence
     # effect of a sequence is the product of the effects of the states per position
@@ -107,7 +117,7 @@ def select_pool(unique_sequences : np.ndarray, counts : np.ndarray, sequence_eff
     print(np.sqrt(objective_function(free_target_concentration)))
 
     # compute number of selected sequences (deterministic rounding to integers )
-    # counts_selected = np.round(free_target_concentration * counts / (free_target_concentration + sequence_effects)).astype(int)
+    # counts_selected = free_target_concentration * counts / (free_target_concentration + sequence_effects)
     # compute the number of selected sequenes as binomial random variable (stochastic)
     counts_selected = np.random.binomial(counts, (free_target_concentration * counts / (free_target_concentration + sequence_effects))/counts)
 
@@ -125,7 +135,7 @@ def single_site_count(unique_sequences : np.ndarray, counts : np.ndarray, number
             row_indices = np.where(unique_sequences[:,j] == i)[0]
             # sum the counts of these sequences
             single_site_counts[i,j] = np.sum(counts[row_indices])
-    return single_site_counts.astype(int)
+    return single_site_counts
 
 def pairwise_count(unique_sequences : np.ndarray, counts : np.ndarray, number_states : int, sequence_length : int, output_path: str) -> np.ndarray:
     # open text file for writing
@@ -160,7 +170,7 @@ def infer_effects(single_site_counts_selected : np.ndarray, single_site_counts_n
     # then divide the non-selected matrix by the selected matrix elementwise
     return single_site_counts_non_selected / single_site_counts_selected
     
-def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str) -> np.ndarray:
+def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str, pruning : int = 0) -> np.ndarray:
     # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
     # save ground truth
@@ -168,7 +178,7 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     np.savetxt(output_path + 'ground_truth.csv', ground_truth[1:].flatten('F'), delimiter=',', fmt='%f')
 
     # generate sequences
-    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change)
+    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change, pruning)
     # save unique sequences, counts and sequence effects
     os.makedirs(output_path + 'round_1', exist_ok=True)
     np.savetxt(output_path + 'round_1/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
@@ -204,7 +214,7 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     enriched_non_selected_counts = np.round(non_selected * number_sequences / np.sum(non_selected)).astype(int)
 
     # remutate non-selected sequences
-    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, enriched_non_selected_counts, ground_truth, p_state_change)
+    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, enriched_non_selected_counts, ground_truth, p_state_change, pruning)
     os.makedirs(output_path + 'round_2', exist_ok=True)
     np.savetxt(output_path + 'round_2/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/counts.csv', counts, delimiter=',', fmt='%d')
@@ -255,12 +265,15 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
 # print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
 
 
-def main():
+def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state_change : float = 2/20, p_effect : float = 0.7, number_sequences : int = 10000000, pruning : int = 0):
+    if sequence_length != 20 and p_state_change == 2/20:
+        p_state_change = 2/sequence_length
+        
     ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change, p_effect)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
-            simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, '/datadisk/MIME/depth_test/target1_' + str(target1) + '_target2_' + str(target2) + '/')
+            simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
 
 if __name__ == '__main__':
-    main()
+    main('high_depth_pruning10', sequence_length=20, number_sequences=10000000, pruning=10)
 
