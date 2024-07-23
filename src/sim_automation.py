@@ -1,4 +1,4 @@
-import MIME_simulator
+import stochastic_MIME_simulator
 import MIME_correction
 import numpy as np
 

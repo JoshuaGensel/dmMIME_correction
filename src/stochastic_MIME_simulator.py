@@ -100,7 +100,7 @@ def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, groun
 
     return new_unique_sequences, new_counts, new_sequence_effects
 
-def select_pool(unique_sequences : np.ndarray, counts : np.ndarray, sequence_effects : np.ndarray, relative_number_targets : int) -> tuple[np.ndarray, np.ndarray]:
+def select_pool(counts : np.ndarray, sequence_effects : np.ndarray, relative_number_targets : int) -> tuple[np.ndarray, np.ndarray]:
     # get frequencies from counts
     frequencies = counts / np.sum(counts)
     # get free target concentration by minimizing the objective function
@@ -116,8 +116,6 @@ def select_pool(unique_sequences : np.ndarray, counts : np.ndarray, sequence_eff
     # check if the non-squared objective function is close to zero
     print(np.sqrt(objective_function(free_target_concentration)))
 
-    # compute number of selected sequences (deterministic rounding to integers )
-    # counts_selected = free_target_concentration * counts / (free_target_concentration + sequence_effects)
     # compute the number of selected sequenes as binomial random variable (stochastic)
     counts_selected = np.random.binomial(counts, (free_target_concentration * counts / (free_target_concentration + sequence_effects))/counts)
 
@@ -127,6 +125,7 @@ def select_pool(unique_sequences : np.ndarray, counts : np.ndarray, sequence_eff
     return counts_selected, counts_non_selected
 
 def single_site_count(unique_sequences : np.ndarray, counts : np.ndarray, number_states : int, sequence_length : int) -> np.ndarray:
+    
     # compute the number of sequences with a given single state at each position
     single_site_counts = np.zeros((number_states, sequence_length))
     for i in range(number_states):
@@ -135,6 +134,7 @@ def single_site_count(unique_sequences : np.ndarray, counts : np.ndarray, number
             row_indices = np.where(unique_sequences[:,j] == i)[0]
             # sum the counts of these sequences
             single_site_counts[i,j] = np.sum(counts[row_indices])
+            if single_site_counts[i,j] == 0: single_site_counts[i,j] = 1 #TODO get a better solution for this
     return single_site_counts
 
 def pairwise_count(unique_sequences : np.ndarray, counts : np.ndarray, number_states : int, sequence_length : int, output_path: str) -> np.ndarray:
@@ -142,7 +142,7 @@ def pairwise_count(unique_sequences : np.ndarray, counts : np.ndarray, number_st
     f = open(output_path, 'w')
     #write header
     f.write('pos1\tpos2\t11\t12\t13\t14\t21\t22\t23\t24\t31\t32\t33\t34\t41\t42\t43\t44\n')
-    
+
     for pos1 in range(sequence_length):
         for pos2 in range(pos1+1, sequence_length):
             f.write(str(pos1+1) + '\t' + str(pos2+1) + '\t')
@@ -178,7 +178,7 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     np.savetxt(output_path + 'ground_truth.csv', ground_truth[1:].flatten('F'), delimiter=',', fmt='%f')
 
     # generate sequences
-    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change, pruning)
+    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change, pruning = 100)
     # save unique sequences, counts and sequence effects
     os.makedirs(output_path + 'round_1', exist_ok=True)
     np.savetxt(output_path + 'round_1/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
@@ -186,23 +186,35 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     np.savetxt(output_path + 'round_1/sequence_effects.csv', sequence_effects, delimiter=',', fmt='%f')
 
     # select sequences
-    selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, relative_number_targets_1)
+    selected, non_selected = select_pool(counts, sequence_effects, relative_number_targets_1)
     # save selected and non-selected sequences
     os.makedirs(output_path + 'round_1/selected', exist_ok=True)
     os.makedirs(output_path + 'round_1/non_selected', exist_ok=True)
     np.savetxt(output_path + 'round_1/selected/counts.csv', selected, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_1/non_selected/counts.csv', non_selected, delimiter=',', fmt='%d')
 
+    # prune sequences with less than pruning counts
+    if pruning > 0:
+        pruned_sequences = unique_sequences[counts >= pruning]
+        pruned_counts = counts[counts >= pruning]
+        pruned_selected = selected[counts >= pruning]
+        pruned_non_selected = non_selected[counts >= pruning]
+    else:
+        pruned_sequences = unique_sequences
+        pruned_counts = counts
+        pruned_selected = selected
+        pruned_non_selected = non_selected
+
     # compute single site counts
-    single_site_counts_selected = single_site_count(unique_sequences, selected, number_states, sequence_length)
-    single_site_counts_non_selected = single_site_count(unique_sequences, non_selected, number_states, sequence_length)
+    single_site_counts_selected = single_site_count(pruned_sequences, pruned_selected, number_states, sequence_length)
+    single_site_counts_non_selected = single_site_count(pruned_sequences, pruned_non_selected, number_states, sequence_length)
     # save single site counts
     np.savetxt(output_path + 'round_1/selected/single_site_counts.csv', single_site_counts_selected, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_1/non_selected/single_site_counts.csv', single_site_counts_non_selected, delimiter=',', fmt='%d')
 
     # compute pairwise counts
-    pairwise_count(unique_sequences, selected, number_states, sequence_length, output_path + 'round_1/selected/pairwise_count.csv')
-    pairwise_count(unique_sequences, non_selected, number_states, sequence_length, output_path + 'round_1/non_selected/pairwise_count.csv')
+    pairwise_count(pruned_sequences, pruned_selected, number_states, sequence_length, output_path + 'round_1/selected/pairwise_count.csv')
+    pairwise_count(pruned_sequences, pruned_non_selected, number_states, sequence_length, output_path + 'round_1/non_selected/pairwise_count.csv')
 
     # infer effects
     effects = infer_effects(single_site_counts_selected, single_site_counts_non_selected)
@@ -214,30 +226,42 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     enriched_non_selected_counts = np.round(non_selected * number_sequences / np.sum(non_selected)).astype(int)
 
     # remutate non-selected sequences
-    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, enriched_non_selected_counts, ground_truth, p_state_change, pruning)
+    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, enriched_non_selected_counts, ground_truth, p_state_change, pruning = 100)
     os.makedirs(output_path + 'round_2', exist_ok=True)
     np.savetxt(output_path + 'round_2/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/counts.csv', counts, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/sequence_effects.csv', sequence_effects, delimiter=',', fmt='%f')
 
     # select sequences
-    selected, non_selected = select_pool(unique_sequences, counts, sequence_effects, relative_number_targets_2)
+    selected, non_selected = select_pool(counts, sequence_effects, relative_number_targets_2)
     # save selected and non-selected sequences
     os.makedirs(output_path + 'round_2/selected', exist_ok=True)
     os.makedirs(output_path + 'round_2/non_selected', exist_ok=True)
     np.savetxt(output_path + 'round_2/selected/counts.csv', selected, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/non_selected/counts.csv', non_selected, delimiter=',', fmt='%d')
 
+    # prune sequences with less than pruning counts
+    if pruning > 0:
+        pruned_sequences = unique_sequences[counts >= pruning]
+        pruned_counts = counts[counts >= pruning]
+        pruned_selected = selected[counts >= pruning]
+        pruned_non_selected = non_selected[counts >= pruning]
+    else:
+        pruned_sequences = unique_sequences
+        pruned_counts = counts
+        pruned_selected = selected
+        pruned_non_selected = non_selected
+
     # compute single site counts
-    single_site_counts_selected = single_site_count(unique_sequences, selected, number_states, sequence_length)
-    single_site_counts_non_selected = single_site_count(unique_sequences, non_selected, number_states, sequence_length)
+    single_site_counts_selected = single_site_count(pruned_sequences, pruned_selected, number_states, sequence_length)
+    single_site_counts_non_selected = single_site_count(pruned_sequences, pruned_non_selected, number_states, sequence_length)
     # save single site counts
     np.savetxt(output_path + 'round_2/selected/single_site_counts.csv', single_site_counts_selected, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/non_selected/single_site_counts.csv', single_site_counts_non_selected, delimiter=',', fmt='%d')
 
     # compute pairwise counts
-    pairwise_count(unique_sequences, selected, number_states, sequence_length, output_path + 'round_2/selected/pairwise_count.csv')
-    pairwise_count(unique_sequences, non_selected, number_states, sequence_length, output_path + 'round_2/non_selected/pairwise_count.csv')
+    pairwise_count(pruned_sequences, pruned_selected, number_states, sequence_length, output_path + 'round_2/selected/pairwise_count.csv')
+    pairwise_count(pruned_sequences, pruned_non_selected, number_states, sequence_length, output_path + 'round_2/non_selected/pairwise_count.csv')
 
     # infer effects
     effects = infer_effects(single_site_counts_selected, single_site_counts_non_selected)
@@ -275,5 +299,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
 
 if __name__ == '__main__':
-    main('high_depth_pruning10', sequence_length=20, number_sequences=10000000, pruning=10)
+    main('deterministic_pruning100', sequence_length=20, number_sequences=1000000, pruning=0)
 

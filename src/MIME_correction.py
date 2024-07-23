@@ -17,7 +17,7 @@ def get_inferred_Kds(path : str):
     median_Kds = np.vstack((median_mut_C, median_mut_G, median_mut_U)).T.flatten()
     return median_Kds
 
-def correct_pairwise_counts(path_to_pairwise_counts : str, sequencing_error : float):
+def correct_pairwise_counts(path_to_pairwise_counts : str, sequencing_error : float): #TODO: WIP
     """
     Corrects the pairwise counts for sequencing errors. This is done by substracting the sequencing error from single mutant counts and substracting double the sequencing error from double mutant counts.
     """
@@ -53,7 +53,7 @@ def correct_pairwise_counts(path_to_pairwise_counts : str, sequencing_error : fl
     
     
 
-def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pairwise_counts_bound : str):
+def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pairwise_counts_bound : str, count_minimum : int = 0):
     """Constructs the frequency matrix from the pairwise count files output by the dmMIME simulator.
     First the bound and unbound counts are added together to get the total counts of the initial pool.
     Then a square n x n matrix is constructed where n is the number of possible mutations, so sequence length * 3.
@@ -102,8 +102,18 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
                     for mut2 in range(3):
                         if pos1 < pos2:
                             pairwise_counts = counts[np.where((counts[:, 0] == pos1 + 1) & (counts[:, 1] == pos2 + 1))[0], 2:]
+                            
+                            #if any of the counts is below the count minimum, set the frequency to 0
+                            if np.any(pairwise_counts[0,0] < count_minimum) or np.any(pairwise_counts[0,1] < count_minimum) or np.any(pairwise_counts[0,2] < count_minimum) or np.any(pairwise_counts[0,3] < count_minimum):
+                                freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = 0
+                                continue
                             # get pairwise frequency of the mutation 2 at position 2 and the wildtype at position 1
                             freq_mut2_wt1 = pairwise_counts[0, mut2+1]/(pairwise_counts[0, 0] + pairwise_counts[0, 1] + pairwise_counts[0, 2] + pairwise_counts[0, 3])
+                            
+                            #if any of the counts is below the count minimum, set the frequency to 0
+                            if np.any(pairwise_counts[0, (mut1+1)*4] < count_minimum) or np.any(pairwise_counts[0, (mut1+1)*4 + 1] < count_minimum) or np.any(pairwise_counts[0, (mut1+1)*4 + 2] < count_minimum) or np.any(pairwise_counts[0, (mut1+1)*4 + 3] < count_minimum):
+                                freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = 0
+                                continue
                             # get pairwise frequency of the mutation 2 at position 2 and the mutation 1 at position 1
                             freq_mut2_mut1 = pairwise_counts[0, (mut1+1)*4 + mut2+1]/(pairwise_counts[0, (mut1+1)*4] + pairwise_counts[0, (mut1+1)*4 + 1] + pairwise_counts[0, (mut1+1)*4 + 2] + pairwise_counts[0, (mut1+1)*4 + 3])
 
@@ -111,8 +121,18 @@ def construct_frequency_matrix(path_to_pairwise_counts_unbound : str, path_to_pa
 
                         if pos1 > pos2:
                             pairwise_counts = counts[np.where((counts[:, 0] == pos2 + 1) & (counts[:, 1] == pos1 + 1))[0], 2:]
+
+                            #if any of the counts is below the count minimum, set the frequency to 0
+                            if np.any(pairwise_counts[0,0] < count_minimum) or np.any(pairwise_counts[0,1] < count_minimum) or np.any(pairwise_counts[0,2] < count_minimum) or np.any(pairwise_counts[0,3] < count_minimum):
+                                freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = 0
+                                continue
                             # get pairwise frequency of the mutation 2 at position 2 and the wildtype at position 1
                             freq_mut2_wt1 = pairwise_counts[0, (mut2+1)*4]/(pairwise_counts[0, 0] + pairwise_counts[0, 4] + pairwise_counts[0, 8] + pairwise_counts[0, 12])
+
+                            #if any of the counts is below the count minimum, set the frequency to 0
+                            if np.any(pairwise_counts[0, (mut1+1)] < count_minimum) or np.any(pairwise_counts[0, (mut1+1)+4] < count_minimum) or np.any(pairwise_counts[0, (mut1+1)+8] < count_minimum) or np.any(pairwise_counts[0, (mut1+1)+12] < count_minimum):
+                                freq_matrix[pos1*3 + mut1, pos2*3 + mut2] = 0
+                                continue
                             # get pairwise frequency of the mutation 2 at position 2 and the mutation 1 at position 1
                             freq_mut2_mut1 = pairwise_counts[0, (mut1+1) + (mut2+1)*4]/(pairwise_counts[0, (mut1+1)+0] + pairwise_counts[0, (mut1+1)+4] + pairwise_counts[0, (mut1+1)+8] + pairwise_counts[0, (mut1+1)+12])
 
