@@ -1,12 +1,13 @@
 import numpy as np
 from scipy.optimize import minimize
+import matplotlib.pyplot as plt
 import os
 
 
 # parameters
 
 relative_number_targets = 1
-sequence_length = 3
+sequence_length = 14
 number_states = 2
 p_state_change = 1/sequence_length
 p_effect = .7
@@ -64,7 +65,7 @@ def select_pool(frequencies : np.ndarray, sequence_effects : np.ndarray, relativ
     # minimize the objective function
     res = minimize(objective_function, x0, bounds=bounds)
     free_target_concentration = res.x[0]
-    print('free target concentration', free_target_concentration)
+    print('free target concentration is ', free_target_concentration)
     # check if the non-squared objective function is close to zero
     print("optimized value plugged in equation should be 0 and is", np.sqrt(objective_function(free_target_concentration)))
 
@@ -85,13 +86,49 @@ frequencies_selected, frequencies_not_selected = select_pool(frequencies, sequen
 print("frequencies selected sum to ", np.sum(frequencies_selected))
 print("frequencies not selected sum to ", np.sum(frequencies_not_selected))
 
-# barplot of initial frequencies and after selection
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots(1, 3, figsize=(15,5))
-ax[0].bar(np.arange(len(frequencies)), frequencies)
-ax[0].set_title("Initial frequencies")
-ax[1].bar(np.arange(len(frequencies_selected)), frequencies_selected)
-ax[1].set_title("Selected frequencies")
-ax[2].bar(np.arange(len(frequencies_not_selected)), frequencies_not_selected)
-ax[2].set_title("Not selected frequencies")
-plt.show()
+# # barplot of initial frequencies and after selection
+# fig, ax = plt.subplots(1, 3, figsize=(15,5))
+# ax[0].bar(np.arange(len(frequencies)), frequencies)
+# ax[0].set_title("Initial frequencies")
+# ax[1].bar(np.arange(len(frequencies_selected)), frequencies_selected)
+# ax[1].set_title("Selected frequencies")
+# ax[2].bar(np.arange(len(frequencies_not_selected)), frequencies_not_selected)
+# ax[2].set_title("Not selected frequencies")
+# plt.show()
+
+def remutate_sequences(sequences : np.ndarray, frequencies: np.ndarray, number_states : int, p_state_change : float) -> np.ndarray:
+    # get number of sequences and sequence length
+    number_sequences, sequence_length = sequences.shape
+
+    # create n by n matrix of necessary mutations to change from each sequence to each other sequence
+    mutations = np.zeros((number_sequences, number_sequences))
+    for i in range(number_sequences):
+        for j in range(i+1, number_sequences):
+            mutations[i,j] = np.sum(sequences[i] != sequences[j])
+            mutations[j,i] = mutations[i,j]
+
+    # print("mutations matrix: \n", mutations)
+
+    # create a matrix of probabilities of changing from one sequence to another
+    # probability of changing from one sequence to another is frequency of the first sequence * p_state_change**number of mutations * (1-p_state_change)**(sequence_length - number of mutations)
+    probabilities = frequencies[:, None] * (p_state_change/(number_states-1))**mutations * (1-p_state_change)**(sequence_length - mutations)
+    # print("probabilities matrix: \n", probabilities)
+
+    # summing over the rows gives the new frequencies
+    new_frequencies = np.sum(probabilities, axis=0)
+    # print("new frequencies: \n", new_frequencies)
+    print("frequencies remutated sum to ", np.sum(new_frequencies))
+
+    return new_frequencies
+
+new_frequencies = remutate_sequences(sequences, frequencies, number_states, p_state_change)
+
+# # plot initial and new frequencies
+# fig, ax = plt.subplots(1, 2, figsize=(10,5))
+# ax[0].bar(np.arange(len(frequencies)), frequencies)
+# ax[0].set_title("Initial frequencies")
+# ax[1].bar(np.arange(len(new_frequencies)), new_frequencies)
+# ax[1].set_title("New frequencies")
+# plt.show()
+
+    
