@@ -43,6 +43,24 @@ def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tup
     state_changes = np.sum(sequences != np.zeros(sequence_length), axis=1)
     frequencies = (p_state_change/(number_states-1))**state_changes * (1-p_state_change)**(sequence_length - state_changes)
 
+    # # add random normal noise to the frequencies
+    # frequencies = frequencies + np.random.normal(0, 0.001, frequencies.shape)
+    # # set negative frequencies to 0
+    # frequencies = np.where(frequencies < 0, 0, frequencies)
+    # # normalize frequencies
+    # frequencies = frequencies / np.sum(frequencies)
+
+    # # generate a random frequency for each sequence
+    # frequencies = np.random.rand(sequences.shape[0])
+    # # normalize frequencies
+    # frequencies = frequencies / np.sum(frequencies)
+
+    # # set frequency < 0.00001 to 0
+    # frequencies = np.where(frequencies < 0.01, 0, frequencies)
+    # #normalize frequencies
+    # frequencies = frequencies / np.sum(frequencies)
+
+
     # compute effect of each unique sequence
     # effect of a sequence is the product of the effects of the states per position
     sequence_effects = np.array([np.prod([ground_truth[int(sequences[i,j]), j] for j in range(sequence_length)]) for i in range(sequences.shape[0])])
@@ -73,10 +91,13 @@ def select_pool(frequencies : np.ndarray, sequence_effects : np.ndarray, relativ
     print("optimized value plugged in equation should be 0 and is", np.sqrt(objective_function(free_target_concentration)))
 
     # compute number of selected sequences
-    frequencies_selected = free_target_concentration * frequencies / (free_target_concentration + sequence_effects)
+    probability_selected = (free_target_concentration * frequencies / (free_target_concentration + sequence_effects))
 
     # compute number of non-selected sequences
-    frequencies_not_selected = frequencies - frequencies_selected
+    probability_not_selected = frequencies - probability_selected
+
+    frequencies_selected = probability_selected * frequencies
+    frequencies_not_selected = probability_not_selected * frequencies
 
     # normalize frequencies
     frequencies_selected = frequencies_selected / np.sum(frequencies_selected)
@@ -119,6 +140,19 @@ def remutate_sequences(sequences : np.ndarray, frequencies: np.ndarray, number_s
     # summing over the rows gives the new frequencies
     new_frequencies = np.sum(probabilities, axis=0)
     # print("new frequencies: \n", new_frequencies)
+
+    # # add random normal noise to the frequencies
+    # new_frequencies = new_frequencies + np.random.normal(0, 0.001, new_frequencies.shape)
+    # # set negative new_frequencies to 0
+    # new_frequencies = np.where(new_frequencies < 0, 0, new_frequencies)
+    # # normalize new_frequencies
+    # new_frequencies = new_frequencies / np.sum(new_frequencies)
+
+    # # set frequency < 0.00001 to 0
+    # new_frequencies = np.where(new_frequencies < 0.01, 0, new_frequencies)
+    # #normalize new_frequencies
+    # new_frequencies = new_frequencies / np.sum(new_frequencies)
+
     print("frequencies remutated sum to ", np.sum(new_frequencies))
 
     return new_frequencies
@@ -303,4 +337,4 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
 if __name__ == '__main__':
-    main('deterministic_L_5_q_4', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
+    main('deterministic_L_5_q_4_', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
