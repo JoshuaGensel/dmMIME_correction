@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import minimize
+from scipy.stats import gmean
 import matplotlib.pyplot as plt
 import os
 
@@ -55,10 +56,9 @@ def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tup
     # # normalize frequencies
     # frequencies = frequencies / np.sum(frequencies)
 
-    # # set frequency < 0.00001 to 0
-    # frequencies = np.where(frequencies < 0.01, 0, frequencies)
-    # #normalize frequencies
-    # frequencies = frequencies / np.sum(frequencies)
+    # set frequency < 0.001 to 0 with probability 0.5
+    frequencies = np.where(frequencies < 0.05, np.where(np.random.rand(*frequencies.shape) < 0.5, 0, frequencies), frequencies)
+    frequencies = frequencies / np.sum(frequencies)
 
 
     # compute effect of each unique sequence
@@ -139,7 +139,7 @@ def remutate_sequences(sequences : np.ndarray, frequencies: np.ndarray, number_s
 
     # summing over the rows gives the new frequencies
     new_frequencies = np.sum(probabilities, axis=0)
-    # print("new frequencies: \n", new_frequencies)
+    print("new frequencies: \n", new_frequencies)
 
     # # add random normal noise to the frequencies
     # new_frequencies = new_frequencies + np.random.normal(0, 0.001, new_frequencies.shape)
@@ -148,10 +148,10 @@ def remutate_sequences(sequences : np.ndarray, frequencies: np.ndarray, number_s
     # # normalize new_frequencies
     # new_frequencies = new_frequencies / np.sum(new_frequencies)
 
-    # # set frequency < 0.00001 to 0
-    # new_frequencies = np.where(new_frequencies < 0.01, 0, new_frequencies)
-    # #normalize new_frequencies
-    # new_frequencies = new_frequencies / np.sum(new_frequencies)
+
+    # set frequency < 0.001 to 0 with probability 0.5
+    new_frequencies = np.where(new_frequencies < 0.05, np.where(np.random.rand(*new_frequencies.shape) < 0.5, 0, new_frequencies), new_frequencies)
+    new_frequencies = new_frequencies / np.sum(new_frequencies)
 
     print("frequencies remutated sum to ", np.sum(new_frequencies))
 
@@ -253,6 +253,23 @@ def infer_effects(single_site_counts_selected : np.ndarray, single_site_counts_n
 # effects = infer_effects(single_site_counts_selected, single_site_counts_not_selected)
 # print("effects: \n", effects)
 
+def check_independence_assumption(ground_truth : np.ndarray, single_site_frequencies: np.array, sequence_effects : np.ndarray, frequencies : np.ndarray) -> None:
+    # get number_states and sequence length
+    number_states, sequence_length = ground_truth.shape
+
+    # compute the geometric mean of the sequence effects
+    gmean_sequence_effects = gmean(sequence_effects, weights=frequencies)
+
+    # compute the products of the geometric means of the single site effects (columns are positions, rows are states)
+    gmean_single_site_effects = np.prod(gmean(ground_truth, axis=1, weights=single_site_frequencies), axis=0)
+
+    # check if the geometric mean of the sequence effects is equal to the product of the geometric means of the single site effects
+    print("gmean sequence effects: ", gmean_sequence_effects)
+    print("product of gmean single site effects: ", gmean_single_site_effects)
+    print("gmean sequence effects is equal to product of gmean single site effects: ", np.isclose(gmean_sequence_effects, gmean_single_site_effects))
+
+    return
+
 
 def simulate_dm_MIME(ground_truth : np.ndarray, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str) -> np.ndarray:
     # get number_states and sequence length
@@ -337,4 +354,4 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
 if __name__ == '__main__':
-    main('deterministic_L_5_q_4_', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
+    main('deterministic_L_5_q_4_randompruning', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
