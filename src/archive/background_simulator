@@ -42,21 +42,21 @@ print(samples[:3,:10])
 
 # print(measured_values[:4,:3])
 
-# # compute true background values for every state at every position
-# # true background values are the measured values divided by the ground truth values
-# true_background_values = measured_values / ground_truth
+# compute true background values for every state at every position
+# true background values are the measured values divided by the ground truth values
+true_background_values = measured_values / ground_truth
 
-# # print(true_background_values)
+# print(true_background_values)
 
 
-# # compute average background values for every state at every position
-# average_background_values = np.zeros((number_states, number_positions))
-# # average background values are the average sequence Kd values for sequences with that state at that position divided by the ground truth value of that state at that position divided by the average sequence Kd values for sequences with the default state at that position
-# for i in range(number_states):
-#     for j in range(number_positions):
-#         average_background_values[i,j] = (gmean(sequence_Kd_values[samples[:,j] == i])/ground_truth[i,j])/(gmean(sequence_Kd_values[samples[:,j] == 0])/ground_truth[0,j])
+# compute average background values for every state at every position
+average_background_values = np.zeros((number_states, number_positions))
+# average background values are the average sequence Kd values for sequences with that state at that position divided by the ground truth value of that state at that position divided by the average sequence Kd values for sequences with the default state at that position
+for i in range(number_states):
+    for j in range(number_positions):
+        average_background_values[i,j] = (gmean(sequence_Kd_values[samples[:,j] == i])/ground_truth[i,j])/(gmean(sequence_Kd_values[samples[:,j] == 0])/ground_truth[0,j])
 
-# # print(average_background_values)
+# print(average_background_values)
         
 # print("true_background_values == average_background_values: ", np.allclose(true_background_values, average_background_values))
 # # print("true_background_values: \n", true_background_values)
