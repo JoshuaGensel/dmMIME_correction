@@ -51,10 +51,10 @@ def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tup
     # # normalize frequencies
     # frequencies = frequencies / np.sum(frequencies)
 
-    # # generate a random frequency for each sequence
-    # frequencies = np.random.rand(sequences.shape[0])
-    # # normalize frequencies
-    # frequencies = frequencies / np.sum(frequencies)
+    # generate a random frequency for each sequence
+    frequencies = np.random.rand(sequences.shape[0])
+    # normalize frequencies
+    frequencies = frequencies / np.sum(frequencies)
 
     # # set frequency < 0.001 to 0 with probability 0.5
     # frequencies = np.where(frequencies < 0.001, np.where(np.random.rand(*frequencies.shape) < 1.5, 0, frequencies), frequencies)
@@ -333,9 +333,10 @@ def simulate_dm_MIME(ground_truth : np.ndarray, relative_number_targets_1 : int,
     np.savetxt(output_path + 'round_1/effects.csv', effects[1:].flatten('F'), delimiter=',', fmt='%f')
 
     # check independence assumption
-    gmean_effects = check_independence_assumption(ground_truth, single_site_counts_selected, sequence_effects, selected)
+    single_site_counts = single_site_frequency(unique_sequences, counts, number_states, sequence_length)
+    gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
     # check average assumption
-    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, selected)
+    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
     # create assupmtion directory
     os.makedirs(output_path + 'round_1/assumptions', exist_ok=True)
     # save gmean_effects, true_background and average_background
@@ -374,9 +375,10 @@ def simulate_dm_MIME(ground_truth : np.ndarray, relative_number_targets_1 : int,
     np.savetxt(output_path + 'round_2/effects.csv', effects[1:].flatten('F'), delimiter=',', fmt='%f')
 
     # check independence assumption
-    gmean_effects = check_independence_assumption(ground_truth, single_site_counts_selected, sequence_effects, selected)
+    single_site_counts = single_site_frequency(unique_sequences, counts, number_states, sequence_length)
+    gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
     # check average assumption
-    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, selected)
+    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
     # create assupmtion directory
     os.makedirs(output_path + 'round_2/assumptions', exist_ok=True)
     # save gmean_effects, true_background and average_background
@@ -398,4 +400,4 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
 if __name__ == '__main__':
-    main('deterministic_L_5_q_4_asstest_L7', sequence_length=7, number_states=4, p_state_change=1/5, p_effect=0.7)
+    main('deterministic_L_5_q_4_asstest_random', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)

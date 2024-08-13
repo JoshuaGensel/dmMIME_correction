@@ -134,7 +134,9 @@ def single_site_count(unique_sequences : np.ndarray, counts : np.ndarray, number
             row_indices = np.where(unique_sequences[:,j] == i)[0]
             # sum the counts of these sequences
             single_site_counts[i,j] = np.sum(counts[row_indices])
-            if single_site_counts[i,j] == 0: single_site_counts[i,j] = 1 #TODO get a better solution for this
+            if single_site_counts[i,j] == 0: 
+                single_site_counts[i,j] = 1 #TODO get a better solution for this
+                print('Warning: no sequences with state', i, 'at position', j)
     return single_site_counts
 
 def pairwise_count(unique_sequences : np.ndarray, counts : np.ndarray, number_states : int, sequence_length : int, output_path: str) -> np.ndarray:
@@ -169,6 +171,44 @@ def infer_effects(single_site_counts_selected : np.ndarray, single_site_counts_n
 
     # then divide the non-selected matrix by the selected matrix elementwise
     return single_site_counts_non_selected / single_site_counts_selected
+
+def check_independence_assumption(ground_truth : np.ndarray, single_site_frequencies: np.array, sequence_effects : np.ndarray, frequencies : np.ndarray) -> np.ndarray:
+    # get number_states and sequence length
+    number_states, sequence_length = ground_truth.shape
+
+    # compute the geometric mean of the sequence effects
+    gmean_sequence_effects = gmean(sequence_effects, weights=frequencies)
+
+    # compute the products of the geometric means of the single site effects (columns are positions, rows are states)
+    gmean_single_site_effects = np.prod(gmean(ground_truth, axis=1, weights=single_site_frequencies), axis=0)
+
+    # check if the geometric mean of the sequence effects is equal to the product of the geometric means of the single site effects
+    print("gmean sequence effects: ", gmean_sequence_effects)
+    print("product of gmean single site effects: ", gmean_single_site_effects)
+    print("gmean sequence effects is equal to product of gmean single site effects: ", np.isclose(gmean_sequence_effects, gmean_single_site_effects))
+
+    effects = np.array([gmean_sequence_effects, gmean_single_site_effects])
+
+    return effects
+
+def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np.ndarray, unique_sequences : np.ndarray, sequence_effects : np.ndarray, frequencies : np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    #compute the true background effect
+    true_background = single_site_effects/ground_truth
+
+    # compute the average background effect
+    average_background = np.zeros((ground_truth.shape[0], ground_truth.shape[1]))
+    for state in range(ground_truth.shape[0]):
+        for position in range(ground_truth.shape[1]):
+            mutant_indices = np.where(unique_sequences[:,position] == state)[0]
+            default_indices = np.where(unique_sequences[:,position] == 0)[0]
+            average_background[state, position] = ((gmean(sequence_effects[mutant_indices], weights=frequencies[mutant_indices])/ground_truth[state, position]))/((gmean(sequence_effects[default_indices], weights=frequencies[default_indices])/ground_truth[0, position]))
+
+    # check if the true background effect is equal to the average background effect
+    print("true background effect: \n", true_background)
+    print("average background effect: \n", average_background)
+    print("true background effect is equal to average background effect: ", np.allclose(true_background, average_background))
+
+    return true_background, average_background
     
 def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str, pruning : int = 0) -> np.ndarray:
     # get number_states and sequence length
