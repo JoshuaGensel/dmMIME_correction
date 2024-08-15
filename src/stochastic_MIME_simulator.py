@@ -218,7 +218,7 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     np.savetxt(output_path + 'ground_truth.csv', ground_truth[1:].flatten('F'), delimiter=',', fmt='%f')
 
     # generate sequences
-    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change, pruning = 100)
+    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change)
     # save unique sequences, counts and sequence effects
     os.makedirs(output_path + 'round_1', exist_ok=True)
     np.savetxt(output_path + 'round_1/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
@@ -262,11 +262,23 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     # remove row 0 (default state), flatten and save
     np.savetxt(output_path + 'round_1/effects.csv', effects[1:].flatten('F'), delimiter=',', fmt='%f')
 
+    # check independence assumption
+    single_site_counts = single_site_count(unique_sequences, counts, number_states, sequence_length)
+    gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
+    # check average assumption
+    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
+    # create assupmtion directory
+    os.makedirs(output_path + 'round_1/assumptions', exist_ok=True)
+    # save gmean_effects, true_background and average_background
+    np.savetxt(output_path + 'round_1/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'round_1/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'round_1/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
+
     # enrich non-selected pool to be the same number as the initial pool
     enriched_non_selected_counts = np.round(non_selected * number_sequences / np.sum(non_selected)).astype(int)
 
     # remutate non-selected sequences
-    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, enriched_non_selected_counts, ground_truth, p_state_change, pruning = 100)
+    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, enriched_non_selected_counts, ground_truth, p_state_change)
     os.makedirs(output_path + 'round_2', exist_ok=True)
     np.savetxt(output_path + 'round_2/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/counts.csv', counts, delimiter=',', fmt='%d')
@@ -308,6 +320,18 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     # save effects
     np.savetxt(output_path + 'round_2/effects.csv', effects[1:].flatten('F'), delimiter=',', fmt='%f')
 
+    # check independence assumption
+    single_site_counts = single_site_count(unique_sequences, counts, number_states, sequence_length)
+    gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
+    # check average assumption
+    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
+    # create assupmtion directory
+    os.makedirs(output_path + 'round_2/assumptions', exist_ok=True)
+    # save gmean_effects, true_background and average_background
+    np.savetxt(output_path + 'round_2/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'round_2/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'round_2/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
+
     print('done')
     return
 
@@ -339,5 +363,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
 
 if __name__ == '__main__':
-    main('deterministic_pruning100', sequence_length=20, number_sequences=1000000, pruning=0)
+    main('discrete_L60_q5_n500k_asstest', sequence_length=60, number_sequences=500000, pruning=0)
 
