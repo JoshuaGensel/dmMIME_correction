@@ -348,6 +348,9 @@ def simulate_dm_MIME(ground_truth : np.ndarray, relative_number_targets_1 : int,
     counts = remutate_sequences(unique_sequences, non_selected, number_states, p_state_change)
     os.makedirs(output_path + 'round_2', exist_ok=True)
     np.savetxt(output_path + 'round_2/counts.csv', counts, delimiter=',', fmt='%f')
+    # save unique sequences and sequence effects again (they are the same as in round 1)
+    np.savetxt(output_path + 'round_2/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_2/sequence_effects.csv', sequence_effects, delimiter=',', fmt='%f')
 
     # select sequences
     selected, non_selected = select_pool(counts, sequence_effects, relative_number_targets_2)

@@ -363,5 +363,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
 
 if __name__ == '__main__':
-    main('discrete_L60_q5_n500k_asstest', sequence_length=60, number_sequences=500000, pruning=0)
+    main('discrete_L7_q5_n500k_asstest', sequence_length=7, number_sequences=500000, pruning=0)
 
