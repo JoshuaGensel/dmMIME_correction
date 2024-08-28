@@ -16,10 +16,11 @@ import os
 # generate ground truth
 
 def generate_ground_truth(sequence_length : int, number_states : int, p_effect) -> np.ndarray:
-    # default state has value 1
-    default_state = np.ones(sequence_length)
+    # default state has value e
+    default_state = np.ones(sequence_length) #* np.e
     # mutant states are drawn from a log-normal distribution
     mutant_states = np.round(np.random.lognormal(mean=0, sigma=1, size=(number_states-1, sequence_length)),2)
+    # mutant_states = np.round(np.exp((np.random.beta(a = 4, b = 2, size=(number_states-1, sequence_length))-4/(4+2))*3),2)
     # set mutant states to 1 with probability 1 - p_effect
     mutant_states = np.where(np.random.rand(*mutant_states.shape) < 1-p_effect, 1, mutant_states)
 
@@ -274,7 +275,7 @@ def check_independence_assumption(ground_truth : np.ndarray, single_site_frequen
 
 def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np.ndarray, unique_sequences : np.ndarray, sequence_effects : np.ndarray, frequencies : np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     #compute the true background effect
-    true_background = single_site_effects/ground_truth
+    true_background = single_site_effects/(ground_truth/ground_truth[0])
 
     # compute the average background effect
     average_background = np.zeros((ground_truth.shape[0], ground_truth.shape[1]))
@@ -403,4 +404,4 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
 if __name__ == '__main__':
-    main('deterministic_L_5_q_4_asstest_random', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
+    main('deterministic_L_5_q_4_random_test', sequence_length=6, number_states=4, p_state_change=1/6, p_effect=0.7)
