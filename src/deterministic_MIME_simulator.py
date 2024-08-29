@@ -52,10 +52,10 @@ def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tup
     # # normalize frequencies
     # frequencies = frequencies / np.sum(frequencies)
 
-    # generate a random frequency for each sequence
-    frequencies = np.random.rand(sequences.shape[0])
-    # normalize frequencies
-    frequencies = frequencies / np.sum(frequencies)
+    # # generate a random frequency for each sequence
+    # frequencies = np.random.rand(sequences.shape[0])
+    # # normalize frequencies
+    # frequencies = frequencies / np.sum(frequencies)
 
     # # set frequency < 0.001 to 0 with probability 0.5
     # frequencies = np.where(frequencies < 0.001, np.where(np.random.rand(*frequencies.shape) < 1.5, 0, frequencies), frequencies)
@@ -273,24 +273,26 @@ def check_independence_assumption(ground_truth : np.ndarray, single_site_frequen
 
     return effects
 
-def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np.ndarray, unique_sequences : np.ndarray, sequence_effects : np.ndarray, frequencies : np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np.ndarray, unique_sequences : np.ndarray, sequence_effects : np.ndarray, frequencies : np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     #compute the true background effect
     true_background = single_site_effects/(ground_truth/ground_truth[0])
 
     # compute the average background effect
     average_background = np.zeros((ground_truth.shape[0], ground_truth.shape[1]))
+    gmean_ratio = np.zeros((ground_truth.shape[0], ground_truth.shape[1]))
     for state in range(ground_truth.shape[0]):
         for position in range(ground_truth.shape[1]):
             mutant_indices = np.where(unique_sequences[:,position] == state)[0]
             default_indices = np.where(unique_sequences[:,position] == 0)[0]
             average_background[state, position] = ((gmean(sequence_effects[mutant_indices], weights=frequencies[mutant_indices])/ground_truth[state, position]))/((gmean(sequence_effects[default_indices], weights=frequencies[default_indices])/ground_truth[0, position]))
+            gmean_ratio[state, position] = gmean(sequence_effects[mutant_indices], weights=frequencies[mutant_indices])/gmean(sequence_effects[default_indices], weights=frequencies[default_indices])
 
     # check if the true background effect is equal to the average background effect
     print("true background effect: \n", true_background)
     print("average background effect: \n", average_background)
     print("true background effect is equal to average background effect: ", np.allclose(true_background, average_background))
 
-    return true_background, average_background
+    return true_background, average_background, gmean_ratio
 
 
 def simulate_dm_MIME(ground_truth : np.ndarray, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str) -> np.ndarray:
@@ -337,13 +339,14 @@ def simulate_dm_MIME(ground_truth : np.ndarray, relative_number_targets_1 : int,
     single_site_counts = single_site_frequency(unique_sequences, counts, number_states, sequence_length)
     gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
     # check average assumption
-    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
+    true_background, average_background, gmean_ratio = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
     # create assupmtion directory
     os.makedirs(output_path + 'round_1/assumptions', exist_ok=True)
     # save gmean_effects, true_background and average_background
     np.savetxt(output_path + 'round_1/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_1/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_1/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'round_1/assumptions/gmean_ratio.csv', gmean_ratio, delimiter=',', fmt='%f')
 
     # remutate non-selected sequences
     counts = remutate_sequences(unique_sequences, non_selected, number_states, p_state_change)
@@ -382,13 +385,14 @@ def simulate_dm_MIME(ground_truth : np.ndarray, relative_number_targets_1 : int,
     single_site_counts = single_site_frequency(unique_sequences, counts, number_states, sequence_length)
     gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
     # check average assumption
-    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
+    true_background, average_background, gmean_ratio = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
     # create assupmtion directory
     os.makedirs(output_path + 'round_2/assumptions', exist_ok=True)
     # save gmean_effects, true_background and average_background
     np.savetxt(output_path + 'round_2/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_2/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_2/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'round_2/assumptions/gmean_ratio.csv', gmean_ratio, delimiter=',', fmt='%f')
 
 
     print('done')
@@ -404,4 +408,4 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
 if __name__ == '__main__':
-    main('deterministic_L_5_q_4_random_test', sequence_length=6, number_states=4, p_state_change=1/6, p_effect=0.7)
+    main('deterministic_L_5_q_4_gmean_ratio', sequence_length=6, number_states=4, p_state_change=1/6, p_effect=0.7)
