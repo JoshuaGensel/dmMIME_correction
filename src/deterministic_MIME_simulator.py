@@ -52,10 +52,10 @@ def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tup
     # # normalize frequencies
     # frequencies = frequencies / np.sum(frequencies)
 
-    # # generate a random frequency for each sequence
-    # frequencies = np.random.rand(sequences.shape[0])
-    # # normalize frequencies
-    # frequencies = frequencies / np.sum(frequencies)
+    # generate a random frequency for each sequence
+    frequencies = np.random.rand(sequences.shape[0])
+    # normalize frequencies
+    frequencies = frequencies / np.sum(frequencies)
 
     # # set frequency < 0.001 to 0 with probability 0.5
     # frequencies = np.where(frequencies < 0.001, np.where(np.random.rand(*frequencies.shape) < 1.5, 0, frequencies), frequencies)
@@ -408,4 +408,4 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
 if __name__ == '__main__':
-    main('deterministic_L_5_q_4_gmean_ratio', sequence_length=6, number_states=4, p_state_change=1/6, p_effect=0.7)
+    main('deterministic_L_5_q_4_random_bg_test', sequence_length=6, number_states=4, p_state_change=1/6, p_effect=0.7)
