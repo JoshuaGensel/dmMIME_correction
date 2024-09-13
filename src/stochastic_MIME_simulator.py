@@ -197,18 +197,20 @@ def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np
 
     # compute the average background effect
     average_background = np.zeros((ground_truth.shape[0], ground_truth.shape[1]))
+    gmean_ratio = np.zeros((ground_truth.shape[0], ground_truth.shape[1]))
     for state in range(ground_truth.shape[0]):
         for position in range(ground_truth.shape[1]):
             mutant_indices = np.where(unique_sequences[:,position] == state)[0]
             default_indices = np.where(unique_sequences[:,position] == 0)[0]
             average_background[state, position] = ((gmean(sequence_effects[mutant_indices], weights=frequencies[mutant_indices])/ground_truth[state, position]))/((gmean(sequence_effects[default_indices], weights=frequencies[default_indices])/ground_truth[0, position]))
+            gmean_ratio[state, position] = gmean(sequence_effects[mutant_indices], weights=frequencies[mutant_indices])/gmean(sequence_effects[default_indices], weights=frequencies[default_indices])
 
     # check if the true background effect is equal to the average background effect
     print("true background effect: \n", true_background)
     print("average background effect: \n", average_background)
     print("true background effect is equal to average background effect: ", np.allclose(true_background, average_background))
 
-    return true_background, average_background
+    return true_background, average_background, gmean_ratio
     
 def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str, pruning : int = 0) -> np.ndarray:
     # get number_states and sequence length
@@ -266,13 +268,14 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     single_site_counts = single_site_count(unique_sequences, counts, number_states, sequence_length)
     gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
     # check average assumption
-    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
+    true_background, average_background, gmean_ratio = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
     # create assupmtion directory
     os.makedirs(output_path + 'round_1/assumptions', exist_ok=True)
     # save gmean_effects, true_background and average_background
     np.savetxt(output_path + 'round_1/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_1/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_1/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'round_1/assumptions/gmean_ratio.csv', gmean_ratio, delimiter=',', fmt='%f')
 
     # enrich non-selected pool to be the same number as the initial pool
     enriched_non_selected_counts = np.round(non_selected * number_sequences / np.sum(non_selected)).astype(int)
@@ -324,13 +327,14 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     single_site_counts = single_site_count(unique_sequences, counts, number_states, sequence_length)
     gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
     # check average assumption
-    true_background, average_background = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
+    true_background, average_background, gmean_ratio = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
     # create assupmtion directory
     os.makedirs(output_path + 'round_2/assumptions', exist_ok=True)
     # save gmean_effects, true_background and average_background
     np.savetxt(output_path + 'round_2/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_2/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_2/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'round_2/assumptions/gmean_ratio.csv', gmean_ratio, delimiter=',', fmt='%f')
 
     print('done')
     return
@@ -355,7 +359,7 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
 
 def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state_change : float = 2/20, p_effect : float = 0.7, number_sequences : int = 10000000, pruning : int = 0):
     if sequence_length != 20 and p_state_change == 2/20:
-        p_state_change = 2/sequence_length
+        p_state_change = 1.5/sequence_length
         
     ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change, p_effect)
     for target1 in [.1, 1, 10]:
@@ -363,5 +367,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
             simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
 
 if __name__ == '__main__':
-    main('discrete_L7_q5_n500k_asstest', sequence_length=7, number_sequences=500000, pruning=0)
+    main('discrete_L10_q4_n500k_bg_test', sequence_length=10, number_sequences=500000, pruning=0)
 
