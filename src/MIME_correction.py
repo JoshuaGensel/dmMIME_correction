@@ -317,39 +317,49 @@ def comparison_plot(ground_truth_Kds, inferred_Kds_1, inferred_Kds_2, inferred_K
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 5))
 
     # plot log ground truth vs log inferred median Kds of each protein concentration
-    ax1.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_1), label='prot 0.1', alpha=0.5)
-    ax1.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_2), label='prot 1', alpha=0.5)
-    ax1.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_3), label='prot 10', alpha=0.5)
-    ax1.set_xlabel('log ground truth Kd')
-    ax1.set_ylabel('log inferred median Kd')
+    ax1.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_1), label='$B_{tot} = 0.1$', alpha=0.5)
+    ax1.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_2), label='$B_{tot} = 1$', alpha=0.5)
+    ax1.scatter(np.log(ground_truth_Kds), np.log(inferred_Kds_3), label='$B_{tot} = 10$', alpha=0.5)
+    # ax1.set_xlabel('log ground truth Kd')
+    # ax1.set_ylabel('log inferred median Kd')
     ax1.legend()
     x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
     y = x
     ax1.plot(x, y, color='black', linestyle='--')
 
     # plot log ground truth vs log corrected median Kds of each protein concentration
-    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_1), label='prot 0.1', alpha=0.5)
-    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_2), label='prot 1', alpha=0.5)
-    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_3), label='prot 10', alpha=0.5)
-    ax2.set_xlabel('log ground truth Kd')
-    ax2.set_ylabel('log corrected median Kd')
+    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_1), label='$B_{tot} = 0.1$', alpha=0.5)
+    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_2), label='$B_{tot} = 1$', alpha=0.5)
+    ax2.scatter(np.log(ground_truth_Kds), np.log(corrected_Kds_3), label='$B_{tot} = 10$', alpha=0.5)
+    # ax2.set_xlabel('log ground truth Kd')
+    # ax2.set_ylabel('log corrected median Kd')
     ax2.legend()
     x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
     y = x
     ax2.plot(x, y, color='black', linestyle='--')
 
     # plot log ground truth vs log inferred median Kds of each protein concentration
-    ax3.scatter(np.log(ground_truth_Kds), np.log(np.mean([inferred_Kds_1, inferred_Kds_2, inferred_Kds_3], axis=0)), label='inferred', alpha=0.5)
-    ax3.scatter(np.log(ground_truth_Kds), np.log(np.mean([corrected_Kds_1, corrected_Kds_2, corrected_Kds_3], axis=0)), label='corrected', alpha=0.5)
-    ax3.set_xlabel('log ground truth Kd')
-    ax3.set_ylabel('log mean Kd')
+    ax3.scatter(np.log(ground_truth_Kds), np.log(np.mean([inferred_Kds_1, inferred_Kds_2, inferred_Kds_3], axis=0)), label='MIME', alpha=0.5)
+    ax3.scatter(np.log(ground_truth_Kds), np.log(np.mean([corrected_Kds_1, corrected_Kds_2, corrected_Kds_3], axis=0)), label='MIME corrected', alpha=0.5)
+    # ax3.set_xlabel('log ground truth Kd')
+    # ax3.set_ylabel('log mean Kd')
     ax3.legend()
     x = np.linspace(np.min(np.log(ground_truth_Kds)), np.max(np.log(ground_truth_Kds)), 100)
     y = x
     ax3.plot(x, y, color='black', linestyle='--')
 
     # set overall title
-    fig.suptitle(title + ', log')
+    # fig.suptitle(title + ', log')
+
+    #add labels for x and y axis
+    ax2.set_xlabel("$\log(Kd)$", fontsize=20)
+    ax1.set_ylabel("$\log(\widehat{Kd})$", fontsize=20)
+    #add overall title
+    plt.suptitle("Round 1", fontsize=20, y=1.05)
+    #set title for each subplot
+    ax1.set_title("MIME")
+    ax2.set_title("MIME Corrected")
+    ax3.set_title("Pools Averaged")
 
 
     plt.show()

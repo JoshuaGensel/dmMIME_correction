@@ -17,10 +17,10 @@ import os
 
 def generate_ground_truth(sequence_length : int, number_states : int, p_effect) -> np.ndarray:
     # default state has value e
-    default_state = np.ones(sequence_length) #* np.e
+    default_state = np.ones(sequence_length)  #* np.e #** 2
     # mutant states are drawn from a log-normal distribution
-    mutant_states = np.round(np.random.lognormal(mean=0, sigma=1, size=(number_states-1, sequence_length)),2)
-    # mutant_states = np.round(np.exp((np.random.beta(a = 4, b = 2, size=(number_states-1, sequence_length))-4/(4+2))*3),2)
+    mutant_states = np.round(np.random.lognormal(mean=1, sigma=1, size=(number_states-1, sequence_length)),2)
+    mutant_states = np.round(np.exp((np.random.beta(a = 4, b = 2, size=(number_states-1, sequence_length))-0)*3),2)
     # set mutant states to 1 with probability 1 - p_effect
     mutant_states = np.where(np.random.rand(*mutant_states.shape) < 1-p_effect, 1, mutant_states)
 
@@ -52,13 +52,14 @@ def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tup
     # # normalize frequencies
     # frequencies = frequencies / np.sum(frequencies)
 
-    # generate a random frequency for each sequence
-    frequencies = np.random.rand(sequences.shape[0])
-    # normalize frequencies
-    frequencies = frequencies / np.sum(frequencies)
+    # # generate a random frequency for each sequence
+    # frequencies = np.random.rand(sequences.shape[0])
+    # # normalize frequencies
+    # frequencies = frequencies / np.sum(frequencies)
 
-    # # set frequency < 0.001 to 0 with probability 0.5
-    # frequencies = np.where(frequencies < 0.001, np.where(np.random.rand(*frequencies.shape) < 1.5, 0, frequencies), frequencies)
+    # # set frequency < 0.001 to 0 with probability p
+    # p = 1.5
+    # frequencies = np.where(frequencies < 0.01, np.where(np.random.rand(*frequencies.shape) < p, 0, frequencies), frequencies)
     # frequencies = frequencies / np.sum(frequencies)
 
 
@@ -151,7 +152,7 @@ def remutate_sequences(sequences : np.ndarray, frequencies: np.ndarray, number_s
 
 
     # # set frequency < 0.001 to 0 with probability 0.5
-    # new_frequencies = np.where(new_frequencies < 0.001, np.where(np.random.rand(*new_frequencies.shape) < 1.5, 0, new_frequencies), new_frequencies)
+    # new_frequencies = np.where(new_frequencies < 0.01, np.where(np.random.rand(*new_frequencies.shape) < 1.5, 0, new_frequencies), new_frequencies)
     # new_frequencies = new_frequencies / np.sum(new_frequencies)
 
     print("frequencies remutated sum to ", np.sum(new_frequencies))
@@ -405,7 +406,17 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     ground_truth = generate_ground_truth(sequence_length, number_states, p_effect)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
-            simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
+            simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/final/{name}/target1_{target1}_target2_{target2}/')
+
+    #write parameters to file
+    f = open(f'/datadisk/MIME/final/{name}/parameters.txt', 'w')
+    f.write(f'sequence_length: {sequence_length}\n')
+    f.write(f'number_states: {number_states}\n')
+    f.write(f'p_state_change: {p_state_change}\n')
+    f.write(f'p_effect: {p_effect}\n')
+    f.close()
+
+    return
 
 if __name__ == '__main__':
-    main('deterministic_L_5_q_4_random_bg_test', sequence_length=6, number_states=4, p_state_change=1/6, p_effect=0.7)
+    main('deterministic_beta2_kdwt0', sequence_length=6, number_states=4, p_state_change=1/6, p_effect=0.7)
