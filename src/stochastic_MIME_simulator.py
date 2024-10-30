@@ -117,7 +117,7 @@ def select_pool(counts : np.ndarray, sequence_effects : np.ndarray, relative_num
     print(np.sqrt(objective_function(free_target_concentration)))
 
     # compute the number of selected sequenes as binomial random variable (stochastic)
-    counts_selected = np.random.binomial(counts, (free_target_concentration * counts / (free_target_concentration + sequence_effects))/counts)
+    counts_selected = np.random.binomial(counts, (free_target_concentration / (free_target_concentration + sequence_effects)))
 
     # compute number of non-selected sequences
     counts_non_selected = counts - counts_selected
@@ -366,6 +366,15 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
         for target2 in [.1, 1, 10]:
             simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
 
+    # write parameters to file
+    f = open(f'/datadisk/MIME/{name}/parameters.txt', 'w')
+    f.write(f'sequence_length: {sequence_length}\n')
+    f.write(f'number_states: {number_states}\n')
+    f.write(f'number_sequences: {number_sequences}\n')
+    f.write(f'p_state_change: {p_state_change}\n')
+    f.write(f'p_effect: {p_effect}\n')
+    f.close()
+
 if __name__ == '__main__':
-    main('discrete_L10_q4_n500k_bg_test', sequence_length=10, number_sequences=500000, pruning=0)
+    main('discrete_test', sequence_length=10, number_sequences=500000, pruning=0)
 

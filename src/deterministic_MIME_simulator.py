@@ -19,8 +19,8 @@ def generate_ground_truth(sequence_length : int, number_states : int, p_effect) 
     # default state has value e
     default_state = np.ones(sequence_length)  #* np.e #** 2
     # mutant states are drawn from a log-normal distribution
-    mutant_states = np.round(np.random.lognormal(mean=1, sigma=1, size=(number_states-1, sequence_length)),2)
-    mutant_states = np.round(np.exp((np.random.beta(a = 4, b = 2, size=(number_states-1, sequence_length))-0)*3),2)
+    mutant_states = np.round(np.random.lognormal(mean=0, sigma=1, size=(number_states-1, sequence_length)),2)
+    # mutant_states = np.round(np.exp((np.random.beta(a = 4, b = 2, size=(number_states-1, sequence_length))-0)*3),2)
     # set mutant states to 1 with probability 1 - p_effect
     mutant_states = np.where(np.random.rand(*mutant_states.shape) < 1-p_effect, 1, mutant_states)
 
@@ -93,17 +93,20 @@ def select_pool(frequencies : np.ndarray, sequence_effects : np.ndarray, relativ
     print("optimized value plugged in equation should be 0 and is", np.sqrt(objective_function(free_target_concentration)))
 
     # compute number of selected sequences
-    probability_selected = (free_target_concentration * frequencies / (free_target_concentration + sequence_effects))
+    probability_selected = (free_target_concentration / (free_target_concentration + sequence_effects))
 
     # compute number of non-selected sequences
-    probability_not_selected = frequencies - probability_selected
+    probability_not_selected = 1 - probability_selected
 
     frequencies_selected = probability_selected * frequencies
     frequencies_not_selected = probability_not_selected * frequencies
 
+    #check if free target concentration is same as initial target concentration - number of selected sequences
+    print("initial target concentration - number of selected sequences is ", relative_number_targets - np.sum(frequencies_selected))
+
     # normalize frequencies
-    frequencies_selected = frequencies_selected / np.sum(frequencies_selected)
-    frequencies_not_selected = frequencies_not_selected / np.sum(frequencies_not_selected)
+    # frequencies_selected = frequencies_selected / np.sum(frequencies_selected)
+    # frequencies_not_selected = frequencies_not_selected / np.sum(frequencies_not_selected)
     print("frequencies selected sum to ", np.sum(frequencies_selected))
     print("frequencies not selected sum to ", np.sum(frequencies_not_selected))
 
@@ -406,10 +409,10 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     ground_truth = generate_ground_truth(sequence_length, number_states, p_effect)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
-            simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/final/{name}/target1_{target1}_target2_{target2}/')
+            simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
     #write parameters to file
-    f = open(f'/datadisk/MIME/final/{name}/parameters.txt', 'w')
+    f = open(f'/datadisk/MIME/{name}/parameters.txt', 'w')
     f.write(f'sequence_length: {sequence_length}\n')
     f.write(f'number_states: {number_states}\n')
     f.write(f'p_state_change: {p_state_change}\n')
@@ -419,4 +422,4 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     return
 
 if __name__ == '__main__':
-    main('deterministic_beta2_kdwt0', sequence_length=6, number_states=4, p_state_change=1/6, p_effect=0.7)
+    main('deterministic_prob_test', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
