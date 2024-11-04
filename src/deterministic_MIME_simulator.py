@@ -52,10 +52,10 @@ def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tup
     # # normalize frequencies
     # frequencies = frequencies / np.sum(frequencies)
 
-    # # generate a random frequency for each sequence
-    # frequencies = np.random.rand(sequences.shape[0])
-    # # normalize frequencies
-    # frequencies = frequencies / np.sum(frequencies)
+    # generate a random frequency for each sequence
+    frequencies = np.random.rand(sequences.shape[0])
+    # normalize frequencies
+    frequencies = frequencies / np.sum(frequencies)
 
     # # set frequency < 0.001 to 0 with probability p
     # p = 1.5
@@ -422,4 +422,4 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     return
 
 if __name__ == '__main__':
-    main('deterministic_prob_test', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
+    main('deterministic_rand_test', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
