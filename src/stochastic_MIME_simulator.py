@@ -52,7 +52,7 @@ def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_stat
     # replace 1s with random 8-bit integers
     sequences[sequences == 1] = np.random.randint(1, number_states, sequences[sequences == 1].shape[0], dtype=np.ubyte) # ubyte is enough for 256 states
     # we do this instead of the random choice above so the sequences are generated as 8-bit integers so large arrays can be stored in memory
-    print('size full sequence array:', np.round(sequences.nbytes/(1024**2)), 'MB')
+    print('\tsize full sequence array:', np.round(sequences.nbytes/(1024**2)), 'MB')
     # print(sequences)    
 
     # condense sequences to unique sequences and add counts as last column
@@ -84,7 +84,7 @@ def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, groun
     positions = np.unravel_index(position_ids, sequences.shape)
     # overwrite mutated states with random 8-bit integers
     sequences[positions] = np.random.randint(1, ground_truth.shape[0], number_mutated_states, dtype=np.ubyte)
-    print('size full sequence array:', np.round(sequences.nbytes/(1024**2)), 'MB')
+    print('\tsize full sequence array:', np.round(sequences.nbytes/(1024**2)), 'MB')
 
     # condense sequences to unique sequences and add counts as last column
     new_unique_sequences, new_counts = np.unique(sequences, axis=0, return_counts=True)
@@ -112,12 +112,14 @@ def select_pool(counts : np.ndarray, sequence_effects : np.ndarray, relative_num
     # minimize the objective function
     res = minimize(objective_function, x0, bounds=bounds)
     free_target_concentration = res.x[0]
-    print('free target concentration', free_target_concentration)
+    print('\tfree target concentration', free_target_concentration)
     # check if the non-squared objective function is close to zero
-    print(np.sqrt(objective_function(free_target_concentration)))
+    print("\toptimized value plugged in equation should be 0 and is", np.sqrt(objective_function(free_target_concentration)))
 
     # compute the number of selected sequenes as binomial random variable (stochastic)
-    counts_selected = np.random.binomial(counts, (free_target_concentration / (free_target_concentration + sequence_effects)))
+    # counts_selected = np.random.binomial(counts, (free_target_concentration / (free_target_concentration + sequence_effects)))
+    # compute the number of selected sequences as deterministic rounding
+    counts_selected = np.round(counts * (free_target_concentration / (free_target_concentration + sequence_effects)))
 
     # compute number of non-selected sequences
     counts_non_selected = counts - counts_selected
@@ -183,9 +185,9 @@ def check_independence_assumption(ground_truth : np.ndarray, single_site_frequen
     gmean_single_site_effects = np.prod(gmean(ground_truth, axis=1, weights=single_site_frequencies), axis=0)
 
     # check if the geometric mean of the sequence effects is equal to the product of the geometric means of the single site effects
-    print("gmean sequence effects: ", gmean_sequence_effects)
-    print("product of gmean single site effects: ", gmean_single_site_effects)
-    print("gmean sequence effects is equal to product of gmean single site effects: ", np.isclose(gmean_sequence_effects, gmean_single_site_effects))
+    # print("gmean sequence effects: ", gmean_sequence_effects)
+    # print("product of gmean single site effects: ", gmean_single_site_effects)
+    # print("gmean sequence effects is equal to product of gmean single site effects: ", np.isclose(gmean_sequence_effects, gmean_single_site_effects))
 
     effects = np.array([gmean_sequence_effects, gmean_single_site_effects])
 
@@ -206,9 +208,9 @@ def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np
             gmean_ratio[state, position] = gmean(sequence_effects[mutant_indices], weights=frequencies[mutant_indices])/gmean(sequence_effects[default_indices], weights=frequencies[default_indices])
 
     # check if the true background effect is equal to the average background effect
-    print("true background effect: \n", true_background)
-    print("average background effect: \n", average_background)
-    print("true background effect is equal to average background effect: ", np.allclose(true_background, average_background))
+    # print("true background effect: \n", true_background)
+    # print("average background effect: \n", average_background)
+    # print("true background effect is equal to average background effect: ", np.allclose(true_background, average_background))
 
     return true_background, average_background, gmean_ratio
     
@@ -336,7 +338,7 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     np.savetxt(output_path + 'round_2/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_2/assumptions/gmean_ratio.csv', gmean_ratio, delimiter=',', fmt='%f')
 
-    print('done')
+    print('\tdone')
     return
 
     
@@ -364,6 +366,7 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change, p_effect)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
+            print(f'simulating MIME with target1={target1} and target2={target2}')
             simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
 
     # write parameters to file
@@ -375,6 +378,8 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     f.write(f'p_effect: {p_effect}\n')
     f.close()
 
+    print('finished')
+
 if __name__ == '__main__':
-    main('discrete_test', sequence_length=10, number_sequences=500000, pruning=0)
+    main('discrete_deterministic_test_L15_n200K', sequence_length=15, number_sequences=200000, pruning=0)
 

@@ -67,8 +67,8 @@ def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tup
     # effect of a sequence is the product of the effects of the states per position
     sequence_effects = np.array([np.prod([ground_truth[int(sequences[i,j]), j] for j in range(sequence_length)]) for i in range(sequences.shape[0])])
 
-    print("number sequences is ", len(sequences))
-    print("frequencies sum to ", np.sum(frequencies))
+    print("\tnumber sequences is ", len(sequences))
+    print("\tfrequencies sum to ", np.sum(frequencies))
 
     return sequences, frequencies, sequence_effects
 
@@ -88,9 +88,9 @@ def select_pool(frequencies : np.ndarray, sequence_effects : np.ndarray, relativ
     # minimize the objective function
     res = minimize(objective_function, x0, bounds=bounds)
     free_target_concentration = res.x[0]
-    print('free target concentration is ', free_target_concentration)
+    print('\tfree target concentration is ', free_target_concentration)
     # check if the non-squared objective function is close to zero
-    print("optimized value plugged in equation should be 0 and is", np.sqrt(objective_function(free_target_concentration)))
+    print("\toptimized value plugged in equation should be 0 and is", np.sqrt(objective_function(free_target_concentration)))
 
     # compute number of selected sequences
     probability_selected = (free_target_concentration / (free_target_concentration + sequence_effects))
@@ -102,13 +102,13 @@ def select_pool(frequencies : np.ndarray, sequence_effects : np.ndarray, relativ
     frequencies_not_selected = probability_not_selected * frequencies
 
     #check if free target concentration is same as initial target concentration - number of selected sequences
-    print("initial target concentration - number of selected sequences is ", relative_number_targets - np.sum(frequencies_selected))
+    # print("initial target concentration - number of selected sequences is ", relative_number_targets - np.sum(frequencies_selected))
 
     # normalize frequencies
     # frequencies_selected = frequencies_selected / np.sum(frequencies_selected)
     # frequencies_not_selected = frequencies_not_selected / np.sum(frequencies_not_selected)
-    print("frequencies selected sum to ", np.sum(frequencies_selected))
-    print("frequencies not selected sum to ", np.sum(frequencies_not_selected))
+    print("\tfrequencies selected sum to ", np.sum(frequencies_selected))
+    print("\tfrequencies not selected sum to ", np.sum(frequencies_not_selected))
 
     return frequencies_selected, frequencies_not_selected
 
@@ -144,7 +144,7 @@ def remutate_sequences(sequences : np.ndarray, frequencies: np.ndarray, number_s
 
     # summing over the rows gives the new frequencies
     new_frequencies = np.sum(probabilities, axis=0)
-    print("new frequencies: \n", new_frequencies)
+    # print("new frequencies: \n", new_frequencies)
 
     # # add random normal noise to the frequencies
     # new_frequencies = new_frequencies + np.random.normal(0, 0.001, new_frequencies.shape)
@@ -158,7 +158,9 @@ def remutate_sequences(sequences : np.ndarray, frequencies: np.ndarray, number_s
     # new_frequencies = np.where(new_frequencies < 0.01, np.where(np.random.rand(*new_frequencies.shape) < 1.5, 0, new_frequencies), new_frequencies)
     # new_frequencies = new_frequencies / np.sum(new_frequencies)
 
-    print("frequencies remutated sum to ", np.sum(new_frequencies))
+    # normalize new frequencies to sum to 1
+    new_frequencies = new_frequencies / np.sum(new_frequencies)
+    print("\tfrequencies remutated sum to ", np.sum(new_frequencies))
 
     return new_frequencies
 
@@ -269,9 +271,9 @@ def check_independence_assumption(ground_truth : np.ndarray, single_site_frequen
     gmean_single_site_effects = np.prod(gmean(ground_truth, axis=1, weights=single_site_frequencies), axis=0)
 
     # check if the geometric mean of the sequence effects is equal to the product of the geometric means of the single site effects
-    print("gmean sequence effects: ", gmean_sequence_effects)
-    print("product of gmean single site effects: ", gmean_single_site_effects)
-    print("gmean sequence effects is equal to product of gmean single site effects: ", np.isclose(gmean_sequence_effects, gmean_single_site_effects))
+    # print("gmean sequence effects: ", gmean_sequence_effects)
+    # print("product of gmean single site effects: ", gmean_single_site_effects)
+    # print("gmean sequence effects is equal to product of gmean single site effects: ", np.isclose(gmean_sequence_effects, gmean_single_site_effects))
 
     effects = np.array([gmean_sequence_effects, gmean_single_site_effects])
 
@@ -292,9 +294,9 @@ def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np
             gmean_ratio[state, position] = gmean(sequence_effects[mutant_indices], weights=frequencies[mutant_indices])/gmean(sequence_effects[default_indices], weights=frequencies[default_indices])
 
     # check if the true background effect is equal to the average background effect
-    print("true background effect: \n", true_background)
-    print("average background effect: \n", average_background)
-    print("true background effect is equal to average background effect: ", np.allclose(true_background, average_background))
+    # print("true background effect: \n", true_background)
+    # print("average background effect: \n", average_background)
+    # print("true background effect is equal to average background effect: ", np.allclose(true_background, average_background))
 
     return true_background, average_background, gmean_ratio
 
@@ -409,6 +411,7 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     ground_truth = generate_ground_truth(sequence_length, number_states, p_effect)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
+            print(f'simulating MIME for target1 {target1} and target2 {target2}')
             simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
     #write parameters to file
@@ -418,6 +421,8 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     f.write(f'p_state_change: {p_state_change}\n')
     f.write(f'p_effect: {p_effect}\n')
     f.close()
+
+    print('finished')
 
     return
 

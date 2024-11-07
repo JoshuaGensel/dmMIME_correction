@@ -38,6 +38,8 @@ def infer_logK_sequences(initial_frequencies: np.array, selected_frequencies: np
 
     # get indices where selected frequency or initial frequency - selected frequency is less than c
     prune_indices = np.where((selected_frequencies < c) | (initial_frequencies - selected_frequencies < c))
+    # print number of pruned sequences
+    print(f"\tPruned {np.sum(initial_frequencies[prune_indices])} sequences")
     # set these indices to nan
     selected_frequencies[prune_indices] = np.nan
     initial_frequencies[prune_indices] = np.nan
@@ -72,6 +74,8 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array)
     # remove these indices from one_hot_sequences and logK_sequences
     one_hot_sequences = np.delete(one_hot_sequences, prune_indices, axis=0)
     logK_sequences = np.delete(logK_sequences, prune_indices)
+    # fill columns in one_hot_sequences that are all zeros with np.nan
+    nan_indices = np.where(np.sum(one_hot_sequences, axis=0) == 0)
 
     #define optimization problem
     def objective(x):
@@ -82,8 +86,9 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array)
 
     #solve optimization problem
     result = sp.optimize.minimize(objective, x0)
+    result.x[nan_indices] = np.nan
 
-    print(result.message)
+    print("\t" + result.message)
 
     return result.x
 
@@ -100,6 +105,7 @@ def logK_inference(path : str, protein_concentrations : list, c : float, number_
         protein_concentration_1 = protein_concentrations[i]
         for j in range(len(protein_concentrations)):
             protein_concentration_2 = protein_concentrations[j]
+            print(f"Pool {protein_concentration_1}, {protein_concentration_2}:")
             logK_sequences_r1.append(infer_logK_sequences(round_1_initial_frequencies[i*len(protein_concentrations) + j], round_1_selected_frequencies[i*len(protein_concentrations) + j], protein_concentration_1, c, number_sequences))
             logK_mutations_r1.append(infer_logK_mutations(logK_sequences_r1[i*len(protein_concentrations) + j], round_1_sequences[i*len(protein_concentrations) + j]))
             logK_sequences_r2.append(infer_logK_sequences(round_2_initial_frequencies[i*len(protein_concentrations) + j], round_2_selected_frequencies[i*len(protein_concentrations) + j], protein_concentration_2, c, number_sequences))
