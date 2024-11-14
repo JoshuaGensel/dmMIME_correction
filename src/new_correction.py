@@ -16,7 +16,7 @@ def get_pool_data(path : str, protein_concentrations : list):
     round_1_selected_frequencies = []
     round_2_selected_frequencies = []
 
-    ground_truth = np.log(np.loadtxt(path + f"target1_{protein_concentrations[0]}_target2_{protein_concentrations[0]}/ground_truth.csv", delimiter=","))
+    ground_truth = np.log(np.loadtxt(path + f"target1_{protein_concentrations[0]}_target2_{protein_concentrations[0]}/ground_truth.csv", delimiter=",")/np.e)
 
     for protein_concentration_1 in protein_concentrations:
         for protein_concentration_2 in protein_concentrations:
@@ -34,7 +34,7 @@ def get_pool_data(path : str, protein_concentrations : list):
 def infer_logK_sequences(initial_frequencies: np.array, selected_frequencies: np.array, total_protein_concentration: float, c: float, number_sequences: int = 1):
 
     # compute free protein concentration
-    free_protein_concentration = total_protein_concentration - np.sum(selected_frequencies/number_sequences)
+    free_protein_concentration = selected_frequencies[0]/(initial_frequencies[0]-selected_frequencies[0])       #total_protein_concentration - np.sum(selected_frequencies/number_sequences)
 
     # get indices where selected frequency or initial frequency - selected frequency is less than c
     prune_indices = np.where((selected_frequencies < c) | (initial_frequencies - selected_frequencies < c))
