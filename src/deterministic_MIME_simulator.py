@@ -15,20 +15,47 @@ import os
 
 # generate ground truth
 
-def generate_ground_truth(sequence_length : int, number_states : int, p_effect) -> np.ndarray:
+def generate_ground_truth(sequence_length : int, number_states : int, p_interaction) -> np.ndarray:
     # default state has value e
-    default_state = np.ones(sequence_length)  * np.e #** 2
+    default_state = np.ones(sequence_length)  #* np.e #** 2
     # mutant states are drawn from a log-normal distribution
-    mutant_states = np.round(np.random.lognormal(mean=1, sigma=1, size=(number_states-1, sequence_length)),2)
+    mutant_states = np.round(np.random.lognormal(mean=0, sigma=1, size=(number_states-1, sequence_length)),2)
     # mutant_states = np.round(np.exp((np.random.beta(a = 4, b = 2, size=(number_states-1, sequence_length))-0)*3),2)
     # set mutant states to 1 with probability 1 - p_effect
-    mutant_states = np.where(np.random.rand(*mutant_states.shape) < 1-p_effect, 1*np.e, mutant_states)
+    # mutant_states = np.where(np.random.rand(*mutant_states.shape) < 1-p_effect, 1*np.e, mutant_states)
 
     ground_truth = np.row_stack((default_state, mutant_states))
 
     print("ground truth: \n", ground_truth)
 
-    return ground_truth
+    # generate interaction matrix
+    interaction_matrix = np.zeros((sequence_length*(number_states-1), sequence_length*(number_states-1)))
+    interacting_states = np.array([], dtype=int)
+        
+    for pos in range(sequence_length-1):
+        for state in range(number_states-1):
+            # coin toss to determine if there is an interaction with probability p_interaction
+            if np.random.rand() < p_interaction:
+                # choose a state from the upper triangular part of the matrix to interact with and check if it has already been chosen
+                possible_interacting_states = np.arange((pos+1)* (number_states-1), sequence_length*(number_states-1))
+                # remove already chosen states
+                possible_interacting_states = np.setdiff1d(possible_interacting_states, interacting_states)
+                if len(possible_interacting_states) != 0:
+                    # choose a state
+                    interacting_state = np.random.choice(possible_interacting_states)
+                    # add interacting state to array
+                    interacting_states = np.append(interacting_states, interacting_state)
+                    # set interaction to random normal value
+                    interaction_matrix[pos*(number_states-1) + state, interacting_state] = np.round(np.random.normal(-.5, .3),1)
+
+    # make matrix symmetric
+    interaction_matrix = interaction_matrix + interaction_matrix.T
+    # set diagonal to 1
+    np.fill_diagonal(interaction_matrix, 1)
+
+    print("interaction matrix: \n", interaction_matrix)
+
+    return ground_truth, interaction_matrix
 
 # ground_truth = generate_ground_truth(sequence_length, number_states, p_effect)
 
@@ -427,4 +454,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     return
 
 if __name__ == '__main__':
-    main('deterministic_kdwte_test', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
+    # main('deterministic_kdwte_test', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
+    generate_ground_truth(3, 4, .5)
