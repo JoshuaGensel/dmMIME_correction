@@ -34,6 +34,9 @@ def generate_ground_truth(sequence_length : int, number_states : int, p_interact
         
     for pos in range(sequence_length-1):
         for state in range(number_states-1):
+            # check if state is already interacting
+            if pos*(number_states-1) + state in interacting_states:
+                continue
             # coin toss to determine if there is an interaction with probability p_interaction
             if np.random.rand() < p_interaction:
                 # choose a state from the upper triangular part of the matrix to interact with and check if it has already been chosen
@@ -59,9 +62,23 @@ def generate_ground_truth(sequence_length : int, number_states : int, p_interact
 
 # ground_truth = generate_ground_truth(sequence_length, number_states, p_effect)
 
+def one_hot_encoding(sequences):
+    one_hot = np.zeros((sequences.shape[0], sequences.shape[1]*3))
+    for i, seq in enumerate(sequences):
+        for j, base in enumerate(seq):
+            if base == 0:
+                continue
+            elif base == 1:
+                one_hot[i, j*3] = 1
+            elif base == 2:
+                one_hot[i, j*3+1] = 1
+            elif base == 3:
+                one_hot[i, j*3+2] = 1
+    return one_hot
+
 # generate sequences
 
-def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def generate_sequences(ground_truth : np.ndarray, E : np.ndarray, p_state_change : float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
 
@@ -91,8 +108,14 @@ def generate_sequences(ground_truth : np.ndarray, p_state_change : float) -> tup
 
 
     # compute effect of each unique sequence
-    # effect of a sequence is the product of the effects of the states per position
-    sequence_effects = np.array([np.prod([ground_truth[int(sequences[i,j]), j] for j in range(sequence_length)]) for i in range(sequences.shape[0])])
+    # transform ground truth into X matrix
+    X = np.zeros((sequence_length*(number_states-1), sequence_length*(number_states-1)))
+    np.fill_diagonal(X, np.log(ground_truth[1:].flatten("F")))
+    # generate A matrix as one-hot encoding of sequences
+    A = one_hot_encoding(sequences)
+    # sequence effects are rowsums of (AX)*(AE)
+    sequence_effects = np.exp(np.sum((A @ X) * (A @ E), axis=1))
+
 
     print("\tnumber sequences is ", len(sequences))
     print("\tfrequencies sum to ", np.sum(frequencies))
@@ -328,15 +351,16 @@ def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np
     return true_background, average_background, gmean_ratio
 
 
-def simulate_dm_MIME(ground_truth : np.ndarray, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str) -> np.ndarray:
+def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str) -> np.ndarray:
     # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
     # save ground truth
     os.makedirs(output_path, exist_ok=True)
     np.savetxt(output_path + 'ground_truth.csv', ground_truth[1:].flatten('F'), delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'interaction_matrix.csv', interaction_matrix, delimiter=',', fmt='%f')
 
     # generate sequences
-    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, p_state_change)
+    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, interaction_matrix, p_state_change)
     # save unique sequences, counts and sequence effects
     os.makedirs(output_path + 'round_1', exist_ok=True)
     np.savetxt(output_path + 'round_1/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
@@ -431,22 +455,22 @@ def simulate_dm_MIME(ground_truth : np.ndarray, relative_number_targets_1 : int,
     print('done')
     return
 
-def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state_change : float = 2/20, p_effect : float = 0.7):
+def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state_change : float = 2/20, p_interaction : float = 0.5):
     if sequence_length != 20 and p_state_change == 2/20:
         p_state_change = 2/sequence_length
         
-    ground_truth = generate_ground_truth(sequence_length, number_states, p_effect)
+    ground_truth, interaction_matrix = generate_ground_truth(sequence_length, number_states, p_interaction)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
             print(f'simulating MIME for target1 {target1} and target2 {target2}')
-            simulate_dm_MIME(ground_truth, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
+            simulate_dm_MIME(ground_truth, interaction_matrix, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
     #write parameters to file
     f = open(f'/datadisk/MIME/{name}/parameters.txt', 'w')
     f.write(f'sequence_length: {sequence_length}\n')
     f.write(f'number_states: {number_states}\n')
     f.write(f'p_state_change: {p_state_change}\n')
-    f.write(f'p_effect: {p_effect}\n')
+    f.write(f'p_interaction: {p_interaction}\n')
     f.close()
 
     print('finished')
@@ -454,5 +478,4 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     return
 
 if __name__ == '__main__':
-    # main('deterministic_kdwte_test', sequence_length=5, number_states=4, p_state_change=1/5, p_effect=0.7)
-    generate_ground_truth(3, 4, .5)
+    main('deterministic_epi05_test', sequence_length=5, number_states=4, p_state_change=1/5, p_interaction=0.5)
