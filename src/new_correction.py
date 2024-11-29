@@ -70,7 +70,6 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array)
     L = int(unique_sequences.shape[1])
     q = int(np.max(unique_sequences) + 1)
     number_mutations = int(L*(q-1))
-    number_interactions = int(0.5 * L * (q-1) * (L*q - L - 3))
 
     # convert sequences to one-hot encoding
     one_hot_sequences = one_hot_encoding(unique_sequences)
@@ -81,6 +80,18 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array)
     logK_sequences = np.delete(logK_sequences, prune_indices)
     # fill columns in one_hot_sequences that are all zeros with np.nan
     nan_indices = np.where(np.sum(one_hot_sequences, axis=0) == 0)
+
+    # get mutation pairs that the interaction matrix will be inferred for
+    mutation_pairs = []
+    for i in range(L*(q-1)):
+        for j in range(i+1, L*(q-1)):
+            # check if there is at least one sequence with a mutation at both positions
+            if np.sum(one_hot_sequences[:, i] * one_hot_sequences[:, j]) >= 1:
+                # also check if there is at least one sequence with a mutation at only one of the positions
+                if np.sum(one_hot_sequences[:, i]) > np.sum(one_hot_sequences[:, i] * one_hot_sequences[:, j]) and np.sum(one_hot_sequences[:, j]) > np.sum(one_hot_sequences[:, i] * one_hot_sequences[:, j]):
+                    mutation_pairs.append((i, j))
+
+    number_interactions = len(mutation_pairs)    
 
     #define optimization problem
     def objective(x):
@@ -99,27 +110,31 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array)
 
         # fill E with the interactions
         i = 0
-        for pos1 in range(L):
-            for pos2 in range(pos1+1, L):
-                for a1 in range(q-1):
-                    for a2 in range(q-1):
-                        E[pos1*(q-1)+a1, pos2*(q-1)+a2] = interactions[i]
-                        i += 1
+        for pair in mutation_pairs:
+            E[pair[0], pair[1]] = interactions[i]
+            i += 1
+
         # symmetrize
         E += E.T 
         #set diagonal to one
         np.fill_diagonal(E, 1)
 
         # compute regularization term for interactions
-        # reg = 1e-3 * np.sum(np.square(interactions))
+        reg = 1e-3 * np.sum(np.square(interactions))
 
         return np.sum((np.sum((A @ X) * (A @ E), axis=1) - logK_sequences)**2) #+ reg
     
     #define initial guess
     x0 = np.zeros(int(number_mutations + number_interactions))
 
+    # define bounds for interactions
+    bounds = []
+    for i in range(number_mutations):
+        bounds.append((-10, 10))
+    for i in range(number_interactions):
+        bounds.append((-2, 2))
     #solve optimization problem
-    result = sp.optimize.minimize(objective, x0)
+    result = sp.optimize.minimize(objective, x0, bounds=bounds, method='L-BFGS-B', options={'maxfun': 1000000, 'maxiter': 1000000})
     result.x[nan_indices] = np.nan
 
     print("\t" + result.message)
@@ -128,14 +143,18 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array)
     # generate resulting interaction matrix
     interactions = np.zeros((number_mutations, number_mutations))
     i = 0
-    for pos1 in range(L):
-        for pos2 in range(pos1+1, L):
-            for a1 in range(q-1):
-                for a2 in range(q-1):
-                    interactions[pos1*(q-1)+a1, pos2*(q-1)+a2] = result.x[number_mutations + i]
-                    i += 1
+    for pair in mutation_pairs:
+        interactions[pair[0], pair[1]] = result.x[number_mutations + i]
+        i += 1
+
     interactions += interactions.T
     np.fill_diagonal(interactions, 1)
+
+    # set all zeros in interactions to nan
+    interactions[interactions == 0] = np.nan
+
+    print(f"\t number of possible interactions: {0.5 * L * (q-1) * (L*q - L - 3)}")
+    print(f"\t number of inferred interactions: {number_interactions}")
 
     return single_effects, interactions
 
