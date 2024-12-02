@@ -17,25 +17,71 @@ import os
 
 # generate ground truth
 
-def generate_ground_truth(sequence_length : int, number_states : int, p_state_change : float, p_effect) -> np.ndarray:
-    # default state has value 1
-    default_state = np.ones(sequence_length)
+def generate_ground_truth(sequence_length : int, number_states : int, p_interaction) -> np.ndarray:
+    # default state has value e
+    default_state = np.ones(sequence_length)  #* np.e #** 2
     # mutant states are drawn from a log-normal distribution
     mutant_states = np.round(np.random.lognormal(mean=0, sigma=1, size=(number_states-1, sequence_length)),2)
-    # set mutant states to 1 with probability p_effect
-    mutant_states[np.random.rand(number_states-1, sequence_length) > p_effect] = 1
+    # mutant_states = np.round(np.exp((np.random.beta(a = 4, b = 2, size=(number_states-1, sequence_length))-0)*3),2)
+    # set mutant states to 1 with probability 1 - p_effect
+    # mutant_states = np.where(np.random.rand(*mutant_states.shape) < 1-p_effect, 1*np.e, mutant_states)
 
     ground_truth = np.row_stack((default_state, mutant_states))
-    print(ground_truth)
 
-    return ground_truth
+    print("ground truth: \n", ground_truth)
+
+    # generate interaction matrix
+    interaction_matrix = np.zeros((sequence_length*(number_states-1), sequence_length*(number_states-1)))
+    interacting_states = np.array([], dtype=int)
+        
+    for pos in range(sequence_length-1):
+        for state in range(number_states-1):
+            # check if state is already interacting
+            if pos*(number_states-1) + state in interacting_states:
+                continue
+            # coin toss to determine if there is an interaction with probability p_interaction
+            if np.random.rand() < p_interaction:
+                # choose a state from the upper triangular part of the matrix to interact with and check if it has already been chosen
+                possible_interacting_states = np.arange((pos+1)* (number_states-1), sequence_length*(number_states-1))
+                # remove already chosen states
+                possible_interacting_states = np.setdiff1d(possible_interacting_states, interacting_states)
+                if len(possible_interacting_states) != 0:
+                    # choose a state
+                    interacting_state = np.random.choice(possible_interacting_states)
+                    # add interacting state to array
+                    interacting_states = np.append(interacting_states, interacting_state)
+                    # set interaction to random normal value
+                    interaction_matrix[pos*(number_states-1) + state, interacting_state] = np.round(np.random.normal(-.5, .3),1)
+
+    # make matrix symmetric
+    interaction_matrix = interaction_matrix + interaction_matrix.T
+    # set diagonal to 1
+    np.fill_diagonal(interaction_matrix, 1)
+
+    print("interaction matrix: \n", interaction_matrix)
+
+    return ground_truth, interaction_matrix
 
 # ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change)
 # print(ground_truth)
 
+def one_hot_encoding(sequences):
+    one_hot = np.zeros((sequences.shape[0], sequences.shape[1]*3))
+    for i, seq in enumerate(sequences):
+        for j, base in enumerate(seq):
+            if base == 0:
+                continue
+            elif base == 1:
+                one_hot[i, j*3] = 1
+            elif base == 2:
+                one_hot[i, j*3+1] = 1
+            elif base == 3:
+                one_hot[i, j*3+2] = 1
+    return one_hot
+
 # generate sequences
 
-def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_state_change : float, pruning : int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def generate_sequences(ground_truth : np.ndarray, E : np.ndarray, number_sequences : int, p_state_change : float, pruning : int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
 
@@ -67,13 +113,20 @@ def generate_sequences(ground_truth : np.ndarray, number_sequences : int, p_stat
         counts = counts[counts >= pruning]
 
     # compute effect of each unique sequence
-    # effect of a sequence is the product of the effects of the states per position
-    sequence_effects = np.array([np.prod([ground_truth[int(unique_sequences[i,j]), j] for j in range(sequence_length)]) for i in range(unique_sequences.shape[0])])
-    # print(sequence_effects)
+    # transform ground truth into X matrix
+    X = np.zeros((sequence_length*(number_states-1), sequence_length*(number_states-1)))
+    np.fill_diagonal(X, np.log(ground_truth[1:].flatten("F")))
+    # generate A matrix as one-hot encoding of sequences
+    A = one_hot_encoding(unique_sequences)
+    # sequence effects are rowsums of (AX)*(AE)
+    sequence_effects = np.exp(np.sum((A @ X) * (A @ E), axis=1))
 
     return unique_sequences, counts, sequence_effects
 
-def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, ground_truth : np.ndarray, p_state_change : float, pruning : int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, ground_truth : np.ndarray, E : np.ndarray, p_state_change : float, pruning : int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+    # get number_states and sequence length
+    number_states, sequence_length = ground_truth.shape
 
     # expand unique sequences to full sequences
     sequences = np.repeat(unique_sequences, counts, axis=0)
@@ -95,8 +148,13 @@ def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, groun
         new_counts = new_counts[new_counts >= pruning]
 
     # compute effect of each unique sequence
-    # effect of a sequence is the product of the effects of the states per position
-    new_sequence_effects = np.array([np.prod([ground_truth[int(new_unique_sequences[i,j]), j] for j in range(sequences.shape[1])]) for i in range(new_unique_sequences.shape[0])])
+    # transform ground truth into X matrix
+    X = np.zeros((sequence_length*(number_states-1), sequence_length*(number_states-1)))
+    np.fill_diagonal(X, np.log(ground_truth[1:].flatten("F")))
+    # generate A matrix as one-hot encoding of sequences
+    A = one_hot_encoding(new_unique_sequences)
+    # sequence effects are rowsums of (AX)*(AE)
+    new_sequence_effects = np.exp(np.sum((A @ X) * (A @ E), axis=1))
 
     return new_unique_sequences, new_counts, new_sequence_effects
 
@@ -214,15 +272,16 @@ def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np
 
     return true_background, average_background, gmean_ratio
     
-def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str, pruning : int = 0) -> np.ndarray:
+def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray, number_sequences : int, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, output_path : str, pruning : int = 0) -> np.ndarray:
     # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
     # save ground truth
     os.makedirs(output_path, exist_ok=True)
     np.savetxt(output_path + 'ground_truth.csv', ground_truth[1:].flatten('F'), delimiter=',', fmt='%f')
+    np.savetxt(output_path + 'interaction_matrix.csv', interaction_matrix, delimiter=',', fmt='%f')
 
     # generate sequences
-    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, number_sequences, p_state_change)
+    unique_sequences, counts, sequence_effects = generate_sequences(ground_truth, interaction_matrix, number_sequences, p_state_change)
     # save unique sequences, counts and sequence effects
     os.makedirs(output_path + 'round_1', exist_ok=True)
     np.savetxt(output_path + 'round_1/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
@@ -283,7 +342,7 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
     enriched_non_selected_counts = np.round(non_selected * number_sequences / np.sum(non_selected)).astype(int)
 
     # remutate non-selected sequences
-    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, enriched_non_selected_counts, ground_truth, p_state_change)
+    unique_sequences, counts, sequence_effects = remutate_sequences(unique_sequences, enriched_non_selected_counts, ground_truth, interaction_matrix, p_state_change)
     os.makedirs(output_path + 'round_2', exist_ok=True)
     np.savetxt(output_path + 'round_2/unique_sequences.csv', unique_sequences, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/counts.csv', counts, delimiter=',', fmt='%d')
@@ -359,15 +418,15 @@ def simulate_dm_MIME(ground_truth : np.ndarray, number_sequences : int, relative
 # print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
 
 
-def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state_change : float = 2/20, p_effect : float = 0.7, number_sequences : int = 10000000, pruning : int = 0):
+def main(name :str, sequence_length : int = 20, number_states : int = 4, p_interaction : float = 0.5, p_state_change : float = 2/20, p_effect : float = 0.7, number_sequences : int = 10000000, pruning : int = 0):
     if sequence_length != 20 and p_state_change == 2/20:
         p_state_change = 1.5/sequence_length
         
-    ground_truth = generate_ground_truth(sequence_length, number_states, p_state_change, p_effect)
+    ground_truth, interaction_matrix = generate_ground_truth(sequence_length, number_states, p_interaction)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
             print(f'simulating MIME with target1={target1} and target2={target2}')
-            simulate_dm_MIME(ground_truth, number_sequences, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
+            simulate_dm_MIME(ground_truth, interaction_matrix, number_sequences, target1, target2, p_state_change, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
 
     # write parameters to file
     f = open(f'/datadisk/MIME/{name}/parameters.txt', 'w')
@@ -381,5 +440,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_state
     print('finished')
 
 if __name__ == '__main__':
-    main('discrete_deterministic_test_L15_n200K', sequence_length=15, number_sequences=200000, pruning=0)
+    main('discrete_interaction_test_L15_n200K', sequence_length=15, number_sequences=200000, pruning=0)
 
