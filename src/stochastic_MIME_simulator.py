@@ -98,7 +98,7 @@ def generate_sequences(ground_truth : np.ndarray, E : np.ndarray, number_sequenc
     # replace 1s with random 8-bit integers
     sequences[sequences == 1] = np.random.randint(1, number_states, sequences[sequences == 1].shape[0], dtype=np.ubyte) # ubyte is enough for 256 states
     # we do this instead of the random choice above so the sequences are generated as 8-bit integers so large arrays can be stored in memory
-    print('\tsize full sequence array:', np.round(sequences.nbytes/(1024**2)), 'MB')
+    # print('\tsize full sequence array:', np.round(sequences.nbytes/(1024**2)), 'MB')
     # print(sequences)    
 
     # condense sequences to unique sequences and add counts as last column
@@ -137,7 +137,7 @@ def remutate_sequences(unique_sequences : np.ndarray, counts : np.ndarray, groun
     positions = np.unravel_index(position_ids, sequences.shape)
     # overwrite mutated states with random 8-bit integers
     sequences[positions] = np.random.randint(1, ground_truth.shape[0], number_mutated_states, dtype=np.ubyte)
-    print('\tsize full sequence array:', np.round(sequences.nbytes/(1024**2)), 'MB')
+    # print('\tsize full sequence array:', np.round(sequences.nbytes/(1024**2)), 'MB')
 
     # condense sequences to unique sequences and add counts as last column
     new_unique_sequences, new_counts = np.unique(sequences, axis=0, return_counts=True)
