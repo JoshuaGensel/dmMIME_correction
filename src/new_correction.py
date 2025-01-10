@@ -65,7 +65,7 @@ def one_hot_encoding(sequences):
                 one_hot[i, j*3+2] = 1
     return one_hot
 
-def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array):
+def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array, lambda_l1 : float = 0.001):
 
     L = int(unique_sequences.shape[1])
     q = int(np.max(unique_sequences) + 1)
@@ -120,9 +120,8 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array)
         np.fill_diagonal(E, 1)
 
         # compute regularization term for interactions
-        reg = 1e-3 * np.sum(np.square(interactions))
-
-        return np.sum((np.sum((A @ X) * (A @ E), axis=1) - logK_sequences)**2) #+ reg
+        reg = lambda_l1 * np.sum(np.abs(interactions))
+        return np.sum((np.sum((A @ X) * (A @ E), axis=1) - logK_sequences)**2) + reg
     
     #define initial guess
     x0 = np.zeros(int(number_mutations + number_interactions))
@@ -158,7 +157,7 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array)
 
     return single_effects, interactions
 
-def logK_inference(path : str, protein_concentrations : list, c : float, number_sequences: int = 1):
+def logK_inference(path : str, protein_concentrations : list, c : float, lambda_l1 : float = 0.001, number_sequences: int = 1):
 
     single_effects, interctions, round_1_sequences, round_2_sequences, round_1_sequence_effects, round_2_sequence_effects, round_1_initial_frequencies, round_2_initial_frequencies, round_1_selected_frequencies, round_2_selected_frequencies = get_pool_data(path, protein_concentrations)
 
@@ -176,8 +175,8 @@ def logK_inference(path : str, protein_concentrations : list, c : float, number_
             print(f"Pool {protein_concentration_1}, {protein_concentration_2}:")
             logK_sequences_r1.append(infer_logK_sequences(round_1_initial_frequencies[i*len(protein_concentrations) + j], round_1_selected_frequencies[i*len(protein_concentrations) + j], protein_concentration_1, c, number_sequences))
             logK_sequences_r2.append(infer_logK_sequences(round_2_initial_frequencies[i*len(protein_concentrations) + j], round_2_selected_frequencies[i*len(protein_concentrations) + j], protein_concentration_2, c, number_sequences))
-            mutation_r1, interaction_r1 = infer_logK_mutations(logK_sequences_r1[-1], round_1_sequences[i*len(protein_concentrations) + j])
-            mutation_r2, interaction_r2 = infer_logK_mutations(logK_sequences_r2[-1], round_2_sequences[i*len(protein_concentrations) + j])
+            mutation_r1, interaction_r1 = infer_logK_mutations(logK_sequences_r1[-1], round_1_sequences[i*len(protein_concentrations) + j], lambda_l1)
+            mutation_r2, interaction_r2 = infer_logK_mutations(logK_sequences_r2[-1], round_2_sequences[i*len(protein_concentrations) + j], lambda_l1)
             logK_mutations_r1.append(mutation_r1)
             logK_mutations_r2.append(mutation_r2)
             interactions_r1.append(interaction_r1)
