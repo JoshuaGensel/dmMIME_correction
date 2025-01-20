@@ -214,6 +214,39 @@ def remutate_sequences(sequences : np.ndarray, frequencies: np.ndarray, number_s
 
     return new_frequencies
 
+def add_sequencing_errors(sequences : np.ndarray, frequencies: np.ndarray, number_states : int, p_error : np.ndarray) -> np.ndarray:
+    # get number of sequences and sequence length
+    number_sequences, sequence_length = sequences.shape
+
+    # normalize frequencies
+    frequencies = frequencies / np.sum(frequencies)
+
+    # p_error is array of probabilities of sequencing errors for each position
+    # create a number_sequences by number_sequences matrix of prababilities of changing from one sequence to another
+    probabilities = np.zeros((number_sequences, number_sequences))
+    for i in range(number_sequences):
+        for j in range(number_sequences):
+            changes = []
+            for position in range(sequence_length):
+                # if sequences differ at position, probability of changing from one sequence to another is p_error
+                if sequences[i,position] != sequences[j,position]:
+                    changes.append(p_error[position]/(number_states-1))
+                else:
+                    changes.append(1-p_error[position])
+            probabilities[i,j] = np.prod(changes) * frequencies[j]
+
+    
+
+    # summing over the rows gives the new frequencies
+    new_frequencies = np.sum(probabilities, axis=0)
+
+    # check if new frequencies sum to 1
+    print("\tfrequencies with errors sum to ", np.sum(new_frequencies))
+    # check if frequencies are identical to frequencies without errors
+    print("frequencies with errors are equal to frequencies without errors: ", np.allclose(new_frequencies, frequencies))
+
+    return new_frequencies
+
 # new_frequencies = remutate_sequences(sequences, frequencies, number_states, p_state_change)
 
 # # plot initial and new frequencies
@@ -351,7 +384,7 @@ def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np
     return true_background, average_background, gmean_ratio
 
 
-def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, p_error : float, output_path : str) -> np.ndarray:
+def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, p_error : np.ndarray, output_path : str) -> np.ndarray:
     # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
     # save ground truth
@@ -375,9 +408,9 @@ def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray,
     np.savetxt(output_path + 'round_1/selected/counts.csv', selected, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_1/non_selected/counts.csv', non_selected, delimiter=',', fmt='%f')
 
-    # add sequencing errors by remutating
-    selected_counts_with_error = remutate_sequences(unique_sequences, selected, number_states, p_error)
-    non_selected_counts_with_error = remutate_sequences(unique_sequences, non_selected, number_states, p_error)
+    # add sequencing errors
+    selected_counts_with_error = add_sequencing_errors(unique_sequences, selected, number_states, p_error)
+    non_selected_counts_with_error = add_sequencing_errors(unique_sequences, non_selected, number_states, p_error)
     # save selected and non-selected sequences
     np.savetxt(output_path + 'round_1/selected/counts_with_error.csv', selected_counts_with_error, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_1/non_selected/counts_with_error.csv', non_selected_counts_with_error, delimiter=',', fmt='%f')
@@ -428,9 +461,9 @@ def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray,
     np.savetxt(output_path + 'round_2/selected/counts.csv', selected, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_2/non_selected/counts.csv', non_selected, delimiter=',', fmt='%f')
 
-    # add sequencing errors by remutating again
-    selected_counts_with_error = remutate_sequences(unique_sequences, selected, number_states, p_error)
-    non_selected_counts_with_error = remutate_sequences(unique_sequences, non_selected, number_states, p_error)
+    # add sequencing errors
+    selected_counts_with_error = add_sequencing_errors(unique_sequences, selected, number_states, p_error)
+    non_selected_counts_with_error = add_sequencing_errors(unique_sequences, non_selected, number_states, p_error)
     # save selected and non-selected sequences
     np.savetxt(output_path + 'round_2/selected/counts_with_error.csv', selected_counts_with_error, delimiter=',', fmt='%f')
     np.savetxt(output_path + 'round_2/non_selected/counts_with_error.csv', non_selected_counts_with_error, delimiter=',', fmt='%f')
@@ -469,17 +502,23 @@ def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray,
     print('done')
     return
 
-def main(name :str, sequence_length : int = 5, number_states : int = 4, p_state_change : float = 2/5, p_error : float = 2/(5*5), p_interaction : float = 0.5):
+def main(name :str, sequence_length : int = 5, number_states : int = 4, p_state_change : float = 2/5, p_error : float = 2/(5*2), p_interaction : float = 0.5):
     if sequence_length != 5 and p_state_change == 2/5:
         p_state_change = 2/sequence_length
     if p_state_change != 2/5 and p_error == 2/(5*5):
-        p_error = p_state_change/5
+        p_error = p_state_change/2
+
+    # generate error rates as uniform draws between 0 and p_error over all positions
+    error_rates = np.random.uniform(0, p_error, sequence_length)
+
+    # write error rates to file
+    np.savetxt(f'/datadisk/MIME/{name}/error_rates.csv', error_rates, delimiter=',', fmt='%f')
 
     ground_truth, interaction_matrix = generate_ground_truth(sequence_length, number_states, p_interaction)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
             print(f'simulating MIME for target1 {target1} and target2 {target2}')
-            simulate_dm_MIME(ground_truth, interaction_matrix, target1, target2, p_state_change, p_error, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
+            simulate_dm_MIME(ground_truth, interaction_matrix, target1, target2, p_state_change, error_rates, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/')
 
     #write parameters to file
     f = open(f'/datadisk/MIME/{name}/parameters.txt', 'w')
@@ -487,7 +526,6 @@ def main(name :str, sequence_length : int = 5, number_states : int = 4, p_state_
     f.write(f'number_states: {number_states}\n')
     f.write(f'p_state_change: {p_state_change}\n')
     f.write(f'p_interaction: {p_interaction}\n')
-    f.write(f'p_error: {p_error}\n')
     f.close()
 
     print('finished')
@@ -495,4 +533,4 @@ def main(name :str, sequence_length : int = 5, number_states : int = 4, p_state_
     return
 
 if __name__ == '__main__':
-    main('deterministic_error05_L5', sequence_length=5, number_states=4, p_state_change=1/5, p_error=1/(5*2), p_interaction=0.5)
+    main('deterministic_error05_L5', sequence_length=5, number_states=4, p_state_change=1/5, p_error=1, p_interaction=0.5)
