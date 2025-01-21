@@ -187,6 +187,36 @@ def select_pool(counts : np.ndarray, sequence_effects : np.ndarray, relative_num
 
     return counts_selected, counts_non_selected
 
+def add_sequence_errors(sequences : np.ndarray, counts : np.ndarray, number_states : int, p_error : np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    # get number sequences and sequence length
+    number_sequences, sequence_length = sequences.shape
+
+    # convertcounts to frequencies\
+    frequencies = counts / np.sum(counts)
+
+    # create transition matrix
+    transition_matrix = np.zeros((number_sequences, number_sequences))
+    for i in range(number_sequences):
+        for j in range(number_sequences):
+            changes = []
+            for position in range(sequence_length):
+                if sequences[i, position] != sequences[j, position]:
+                    changes.append(p_error[position]/(number_states-1))
+                else:
+                    changes.append(1-p_error[position])
+            transition_matrix[i,j] = np.prod(changes)
+
+    # normalize rows of transition matrix
+    transition_matrix = transition_matrix / np.sum(transition_matrix, axis=0)
+
+    # add sequencing errors by multiplying with transition matrix
+    new_frequencies = np.dot(frequencies.T, transition_matrix)
+
+    # convert frequencies back to counts
+    new_counts = np.round(new_frequencies * np.sum(counts))
+
+    return new_counts.astype(int)
+
 def single_site_count(unique_sequences : np.ndarray, counts : np.ndarray, number_states : int, sequence_length : int) -> np.ndarray:
     
     # compute the number of sequences with a given single state at each position
@@ -299,14 +329,12 @@ def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray,
     np.savetxt(output_path + 'round_1/selected/counts.csv', selected, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_1/non_selected/counts.csv', non_selected, delimiter=',', fmt='%d')
 
-    # add sequencing errors by remutating
-    selected_sequences, selected_counts, wrong_selected_sequence_effects = remutate_sequences(unique_sequences, selected, ground_truth, interaction_matrix, p_error)
-    non_selected_sequences, non_selected_counts, wrong_non_selected_sequence_effects = remutate_sequences(unique_sequences, non_selected, ground_truth, interaction_matrix, p_error)
-    # save selected and non-selected sequences
-    np.savetxt(output_path + 'round_1/selected/unique_sequences_with_error.csv', selected_sequences, delimiter=',', fmt='%d')
-    np.savetxt(output_path + 'round_1/non_selected/unique_sequences_with_error.csv', non_selected_sequences, delimiter=',', fmt='%d')
-    np.savetxt(output_path + 'round_1/selected/counts_with_error.csv', selected_counts, delimiter=',', fmt='%d')
-    np.savetxt(output_path + 'round_1/non_selected/counts_with_error.csv', non_selected_counts, delimiter=',', fmt='%d')
+    # add sequencing errors
+    selected_counts_with_error = add_sequence_errors(unique_sequences, selected, number_states, p_error)
+    non_selected_counts_with_error = add_sequence_errors(unique_sequences, non_selected, number_states, p_error)
+    # save selected and non-selected counts with errors
+    np.savetxt(output_path + 'round_1/selected/counts_with_error.csv', selected_counts_with_error, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_1/non_selected/counts_with_error.csv', non_selected_counts_with_error, delimiter=',', fmt='%d')
 
     # prune sequences with less than pruning counts
     if pruning > 0:
@@ -368,15 +396,12 @@ def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray,
     np.savetxt(output_path + 'round_2/selected/counts.csv', selected, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/non_selected/counts.csv', non_selected, delimiter=',', fmt='%d')
 
-    # add sequencing errors by remutating again
-    selected_sequences, selected_counts, wrong_selected_sequence_effects = remutate_sequences(unique_sequences, selected, ground_truth, interaction_matrix, p_error)
-    non_selected_sequences, non_selected_counts, wrong_non_selected_sequence_effects = remutate_sequences(unique_sequences, non_selected, ground_truth, interaction_matrix, p_error)
-    # save selected and non-selected sequences
-    np.savetxt(output_path + 'round_2/selected/unique_sequences_with_error.csv', selected_sequences, delimiter=',', fmt='%d')
-    np.savetxt(output_path + 'round_2/non_selected/unique_sequences_with_error.csv', non_selected_sequences, delimiter=',', fmt='%d')
-    np.savetxt(output_path + 'round_2/selected/counts_with_error.csv', selected_counts, delimiter=',', fmt='%d')
-    np.savetxt(output_path + 'round_2/non_selected/counts_with_error.csv', non_selected_counts, delimiter=',', fmt='%d')
-    
+    # add sequencing errors
+    selected_counts_with_error = add_sequence_errors(unique_sequences, selected, number_states, p_error)
+    non_selected_counts_with_error = add_sequence_errors(unique_sequences, non_selected, number_states, p_error)
+    # save selected and non-selected counts with errors
+    np.savetxt(output_path + 'round_2/selected/counts_with_error.csv', selected_counts_with_error, delimiter=',', fmt='%d')
+    np.savetxt(output_path + 'round_2/non_selected/counts_with_error.csv', non_selected_counts_with_error, delimiter=',', fmt='%d')
 
     # prune sequences with less than pruning counts
     if pruning > 0:
@@ -445,12 +470,22 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_inter
         p_state_change = 1.5/sequence_length
     if p_state_change != 2/20 and p_error == 2/(20*5):
         p_error = p_state_change/5
+
+    print(f'simulating MIME for {name}')
+
+    # generate error rates as uniform draws between 0 and p_error over all positions
+    error_rates = np.random.uniform(0, p_error, sequence_length)
+    print('error rates: ', error_rates)
+
         
     ground_truth, interaction_matrix = generate_ground_truth(sequence_length, number_states, p_interaction)
     for target1 in [.1, 1, 10]:
         for target2 in [.1, 1, 10]:
             print(f'simulating MIME with target1={target1} and target2={target2}')
-            simulate_dm_MIME(ground_truth, interaction_matrix, number_sequences, target1, target2, p_state_change, p_error, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
+            simulate_dm_MIME(ground_truth, interaction_matrix, number_sequences, target1, target2, p_state_change, error_rates, f'/datadisk/MIME/{name}/target1_{target1}_target2_{target2}/', pruning)
+
+    # write error rates to file
+    np.savetxt(f'/datadisk/MIME/{name}/error_rates.csv', error_rates, delimiter=',', fmt='%f')
 
     # write parameters to file
     f = open(f'/datadisk/MIME/{name}/parameters.txt', 'w')
@@ -466,5 +501,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_inter
     print('finished')
 
 if __name__ == '__main__':
-    main('discrete_error02_L15_n200K', sequence_length=15, number_sequences=200000)
+    main('discrete_errortest_L10_n100K', sequence_length=5, number_sequences=100000)
 
