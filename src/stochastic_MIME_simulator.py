@@ -477,6 +477,15 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_inter
     error_rates = np.random.uniform(0, p_error, sequence_length)
     print('error rates: ', error_rates)
 
+    # generate wildtype error count matrix
+    error_counts = np.zeros((number_states, sequence_length))
+    for i in range(sequence_length):
+        error_counts[:,i] = np.random.multinomial(number_sequences, [1-error_rates[i]] + [error_rates[i]/(number_states-1)] * (number_states-1))
+
+    # write error rates and counts to file
+    np.savetxt(f'/datadisk/MIME/{name}/error_rates.csv', error_rates, delimiter=',', fmt='%f')
+    np.savetxt(f'/datadisk/MIME/{name}/error_counts.csv', error_counts, delimiter=',', fmt='%d')
+
         
     ground_truth, interaction_matrix = generate_ground_truth(sequence_length, number_states, p_interaction)
     for target1 in [.1, 1, 10]:
