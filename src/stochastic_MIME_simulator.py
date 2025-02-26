@@ -188,34 +188,42 @@ def select_pool(counts : np.ndarray, sequence_effects : np.ndarray, relative_num
     return counts_selected, counts_non_selected
 
 def add_sequence_errors(sequences : np.ndarray, counts : np.ndarray, number_states : int, p_error : np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    # get number sequences and sequence length
-    number_sequences, sequence_length = sequences.shape
+    full_sequences = np.repeat(sequences, np.maximum(counts, 0), axis=0)
+    # add errors per position according to the error rates
+    for i in range(full_sequences.shape[1]):
+        # draw if error occurs
+        error = np.random.binomial(1, p_error[i], full_sequences.shape[0])
+        # draw the error as uniform over the states
+        error_states = np.random.randint(1, number_states, full_sequences.shape[0], dtype=np.ubyte)
+        # apply the error
+        full_sequences[:, i] = full_sequences[:, i] * (1 - error) + error_states * error
+    # make sequences unique
+    sequences_with_errors, counts_with_errors = np.unique(full_sequences, axis=0, return_counts=True)
 
-    # convertcounts to frequencies\
-    frequencies = counts / np.sum(counts)
+    sequences_with_errors_matched = []
+    counts_matched = []
 
-    # create transition matrix
-    transition_matrix = np.zeros((number_sequences, number_sequences))
-    for i in range(number_sequences):
-        for j in range(number_sequences):
-            changes = []
-            for position in range(sequence_length):
-                if sequences[i, position] != sequences[j, position]:
-                    changes.append(p_error[position]/(number_states-1))
-                else:
-                    changes.append(1-p_error[position])
-            transition_matrix[i,j] = np.prod(changes)
+    #match the error sequences with the original sequences
+    for seq in range(sequences.shape[0]):
+        # find the matching sequences
+        matching = np.where(np.all(sequences[seq] == sequences_with_errors, axis=1))[0]
+        # if there are matching sequences, add them to the list
+        if len(matching) > 0:
+            sequences_with_errors_matched.append(sequences_with_errors[matching][0])
+            counts_matched.append(counts_with_errors[matching][0])
+        # if there are no matching sequences, add the original sequence with 0 counts
+        else:
+            sequences_with_errors_matched.append(sequences[seq])
+            counts_matched.append(0)
+    # convert to numpy arrays
+    sequences_with_errors_matched = np.array(sequences_with_errors_matched)
+    counts_matched = np.array(counts_matched)
+            
 
-    # normalize rows of transition matrix
-    transition_matrix = transition_matrix / np.sum(transition_matrix, axis=0)
+    # return sequences_with_errors, counts_with_errors, sequences_with_errors_matched, counts_matched
 
-    # add sequencing errors by multiplying with transition matrix
-    new_frequencies = np.dot(frequencies.T, transition_matrix)
+    return counts_matched.astype(int)
 
-    # convert frequencies back to counts
-    new_counts = np.round(new_frequencies * np.sum(counts))
-
-    return new_counts.astype(int)
 
 def single_site_count(unique_sequences : np.ndarray, counts : np.ndarray, number_states : int, sequence_length : int) -> np.ndarray:
     
@@ -465,7 +473,7 @@ def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray,
 # print(np.round(infer_effects(single_site_count(unique_sequences, selected, number_states, sequence_length), single_site_count(unique_sequences, non_selected, number_states, sequence_length)),2))
 
 
-def main(name :str, sequence_length : int = 20, number_states : int = 4, p_interaction : float = 0.5, p_state_change : float = 2/20, p_effect : float = 0.7, p_error : float = 2/(20*5), number_sequences : int = 10000000, pruning : int = 0):
+def main(name :str, sequence_length : int = 20, number_states : int = 4, p_interaction : float = 0.5, p_state_change : float = 1.5/20, p_error : float = 2/(20*5), number_sequences : int = 10000000, pruning : int = 0):
     if sequence_length != 20 and p_state_change == 2/20:
         p_state_change = 1.5/sequence_length
     if p_state_change != 2/20 and p_error == 2/(20*5):
@@ -483,8 +491,8 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_inter
         error_counts[:,i] = np.random.multinomial(number_sequences, [1-error_rates[i]] + [error_rates[i]/(number_states-1)] * (number_states-1))
 
     # write error rates and counts to file
-    np.savetxt(f'/datadisk/MIME/{name}/error_rates.csv', error_rates, delimiter=',', fmt='%f')
-    np.savetxt(f'/datadisk/MIME/{name}/error_counts.csv', error_counts, delimiter=',', fmt='%d')
+    # np.savetxt(f'/datadisk/MIME/{name}/error_rates.csv', error_rates, delimiter=',', fmt='%f')
+    # np.savetxt(f'/datadisk/MIME/{name}/error_counts.csv', error_counts, delimiter=',', fmt='%d')
 
         
     ground_truth, interaction_matrix = generate_ground_truth(sequence_length, number_states, p_interaction)
@@ -502,7 +510,6 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_inter
     f.write(f'number_states: {number_states}\n')
     f.write(f'number_sequences: {number_sequences}\n')
     f.write(f'p_state_change: {p_state_change}\n')
-    f.write(f'p_effect: {p_effect}\n')
     f.write(f'p_interaction: {p_interaction}\n')
     f.write(f'p_error: {p_error}\n')
     f.close()
@@ -510,5 +517,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_inter
     print('finished')
 
 if __name__ == '__main__':
-    main('discrete_errortest_L10_n100K', sequence_length=5, number_sequences=100000)
+    main('discrete_errortest_L20_n100K', sequence_length=20, number_sequences=200000)
 
