@@ -1,5 +1,7 @@
 import numpy as np
 import scipy as sp
+from scipy import stats
+from tqdm import tqdm
 
 path = '/datadisk/MIME/deterministic_prob_test/'
 protein_concentrations = [0.1, 1, 10]
@@ -20,6 +22,7 @@ def get_pool_data(path : str, protein_concentrations : list):
 
     single_effects = np.log(np.loadtxt(path + f"target1_{protein_concentrations[0]}_target2_{protein_concentrations[0]}/ground_truth.csv", delimiter=","))
     interactions = np.loadtxt(path + f"target1_{protein_concentrations[0]}_target2_{protein_concentrations[0]}/interaction_matrix.csv", delimiter=",")
+    error_rates = np.loadtxt(path + "error_rates.csv")
 
     for protein_concentration_1 in protein_concentrations:
         for protein_concentration_2 in protein_concentrations:
@@ -29,14 +32,147 @@ def get_pool_data(path : str, protein_concentrations : list):
             round_2_sequence_effects.append(np.log(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_2/sequence_effects.csv", delimiter=",")))
             round_1_initial_frequencies.append(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_1/counts.csv", delimiter=","))
             round_2_initial_frequencies.append(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_2/counts.csv", delimiter=","))
-            round_1_selected_frequencies.append(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_1/selected/counts.csv", delimiter=","))
-            round_2_selected_frequencies.append(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_2/selected/counts.csv", delimiter=","))
+            round_1_selected_frequencies.append(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_1/selected/counts_with_error.csv", delimiter=","))
+            round_2_selected_frequencies.append(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_2/selected/counts_with_error.csv", delimiter=","))
             round_1_nonselected_frequencies.append(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_1/non_selected/counts_with_error.csv", delimiter=","))
             round_2_nonselected_frequencies.append(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_2/non_selected/counts_with_error.csv", delimiter=","))
 
-    return single_effects, interactions, round_1_sequences, round_2_sequences, round_1_sequence_effects, round_2_sequence_effects, round_1_initial_frequencies, round_2_initial_frequencies, round_1_selected_frequencies, round_2_selected_frequencies, round_1_nonselected_frequencies, round_2_nonselected_frequencies
+    return single_effects, interactions, error_rates, round_1_sequences, round_2_sequences, round_1_sequence_effects, round_2_sequence_effects, round_1_initial_frequencies, round_2_initial_frequencies, round_1_selected_frequencies, round_2_selected_frequencies, round_1_nonselected_frequencies, round_2_nonselected_frequencies
 
-def infer_logK_sequences(initial_frequencies: np.array, selected_frequencies: np.array, nonselected_frequencies: np.array, protein_concentration: float, c: float, number_sequences: int = 1):
+
+def correct_sequencing_error(sequences : np.array, counts : np.array, error_rates : np.array, number_states : int = 4, method : str = 'sampling'):
+    # check that method is valid
+    if method not in ('sampling', 'inversion', 'none'):
+        raise ValueError("invalid correction method")
+    
+    if method == 'sampling':
+
+        def add_sequence_error(sequences, counts, sequencing_error_rates):
+    
+            full_sequences = np.repeat(sequences, np.round(np.maximum(counts, 0)).astype(int), axis=0)
+            # add errors per position according to the error rates
+            for i in range(full_sequences.shape[1]):
+                # draw if error occurs
+                error = np.random.binomial(1, sequencing_error_rates[i], full_sequences.shape[0])
+                # draw the error as uniform over the states
+                error_states = np.random.randint(1, number_states, full_sequences.shape[0], dtype=np.ubyte)
+                # apply the error
+                full_sequences[:, i] = full_sequences[:, i] * (1 - error) + error_states * error
+            # make sequences unique
+            sequences_with_errors, counts_with_errors = np.unique(full_sequences, axis=0, return_counts=True)
+
+            sequences_with_errors_matched = []
+            counts_matched = []
+
+            #match the error sequences with the original sequences
+            for seq in range(sequences.shape[0]):
+                # find the matching sequences
+                matching = np.where(np.all(sequences[seq] == sequences_with_errors, axis=1))[0]
+                # if there are matching sequences, add them to the list
+                if len(matching) > 0:
+                    sequences_with_errors_matched.append(sequences_with_errors[matching][0])
+                    counts_matched.append(counts_with_errors[matching][0])
+                # if there are no matching sequences, add the original sequence with 0 counts
+                else:
+                    sequences_with_errors_matched.append(sequences[seq])
+                    counts_matched.append(0)
+            # convert to numpy arrays
+            sequences_with_errors_matched = np.array(sequences_with_errors_matched)
+            counts_matched = np.array(counts_matched)
+                    
+
+            return sequences_with_errors, counts_with_errors, sequences_with_errors_matched, counts_matched
+        
+
+        # initial parameters are the observed counts
+        n_iter = 1000
+        kappa = 10
+        parameters = counts
+        candidates = []
+        best_kl = np.inf
+        best_counts = parameters
+        kl_list = []
+        # apply the error function to the initial distribution
+        for i in tqdm(range(n_iter)):
+            sequences_with_error, counts_with_error, sequences_with_errors_matched, counts_matched = add_sequence_error(sequences, parameters, error_rates)
+
+            # compute KL divergence
+            kl = stats.entropy(counts+1e-10, counts_matched+1e-10)
+            kl_list.append(kl)
+            # if the KL divergence is smaller than the best KL divergence, update the best KL divergence
+            if kl < best_kl:
+                best_kl = kl
+                best_counts = parameters
+            # update the initial distribution
+            parameters = np.maximum(0,parameters + (counts - counts_matched) + np.random.randint(-2, 2, counts.shape))
+            candidates.append(parameters)
+
+        # print(kl_list)
+        # check that weights don't sum to 0
+        # if np.sum(1/(np.array(kl_list)+1)) == 0:
+            # return best_counts
+        mean_parameters = np.round(np.average(candidates, axis=0, weights=1/(kappa*np.array(kl_list)+1)))
+        
+        return mean_parameters
+    
+    elif method == 'inversion':
+        
+        # initial transition matrix
+        transition_matrix = np.zeros((sequences.shape[0], sequences.shape[0]))
+        # fill the transition matrix with the number of different elements in the sequences
+        for i in tqdm(range(sequences.shape[0])):
+            for j in range(sequences.shape[0]):
+                if i == j:
+                    continue
+                position_wise_probability = []
+                for k in range(sequences.shape[1]):
+                    if sequences[i, k] != sequences[j, k]:
+                        position_wise_probability.append(error_rates[k]/(number_states - 1))
+                    else:
+                        position_wise_probability.append(1 - error_rates[k])
+                transition_matrix[i, j] = np.prod(position_wise_probability)
+
+        # set diagonal to (1 - sum of row)
+        transition_matrix = transition_matrix + np.diag(1 - np.sum(transition_matrix, axis=1))
+        # print(np.min(transition_matrix))
+        # print(np.sum(transition_matrix, axis=1))
+
+        # check if matrix is invertible
+        # if np.linalg.matrix_rank(transition_matrix) < transition_matrix.shape[0]:
+            # print("Matrix is not invertible")
+            # return None
+
+        # compute the inverse transition matrix
+        inverse_transition_matrix = np.linalg.inv(transition_matrix)
+
+        # normalize counts
+        counts_norm = counts / np.sum(counts)
+        # print(counts_norm)
+        # compute the full inversion
+        full_inversion = np.dot(counts_norm, inverse_transition_matrix)
+        # print(full_inversion)
+
+        # # make sure the full inversion is positive
+        # full_inversion = np.maximum(0, full_inversion)
+
+        # # normalize the full inversion
+        # full_inversion = full_inversion / np.sum(full_inversion)
+
+        #scale and round the full inversion
+        full_inversion = np.round(full_inversion * np.sum(counts))
+        # set minimum count to 0
+        full_inversion = np.maximum(0.0, full_inversion)
+
+        return full_inversion
+    
+    elif method == 'none':
+        return counts
+
+def infer_logK_sequences(unique_sequences: np.array, initial_frequencies: np.array, selected_frequencies_w_error: np.array, nonselected_frequencies_w_error: np.array, error_rates : np.array, protein_concentration: float, c: float, number_sequences: int = 1, correction_method: str = 'sampling'):
+
+    # correct selected and nonselected frequencies
+    selected_frequencies = correct_sequencing_error(unique_sequences, selected_frequencies_w_error, error_rates, method=correction_method)
+    nonselected_frequencies = correct_sequencing_error(unique_sequences, nonselected_frequencies_w_error, error_rates, method=correction_method)
 
     # compute free protein concentration
     free_protein_concentration = selected_frequencies[0]/(nonselected_frequencies[0])       #total_protein_concentration - np.sum(selected_frequencies/number_sequences)
@@ -161,9 +297,9 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array,
 
     return single_effects, interactions
 
-def logK_inference(path : str, protein_concentrations : list, c : float, lambda_l1 : float = 0.001, number_sequences: int = 1):
+def logK_inference(path : str, protein_concentrations : list, c : float, lambda_l1 : float = 0.001, number_sequences: int = 1, correction_method: str = 'sampling'):
 
-    single_effects, interctions, round_1_sequences, round_2_sequences, round_1_sequence_effects, round_2_sequence_effects, round_1_initial_frequencies, round_2_initial_frequencies, round_1_selected_frequencies, round_2_selected_frequencies, round_1_nonselected_frequencies, round_2_nonselected_frequencies = get_pool_data(path, protein_concentrations)
+    single_effects, interctions, error_rates, round_1_sequences, round_2_sequences, round_1_sequence_effects, round_2_sequence_effects, round_1_initial_frequencies, round_2_initial_frequencies, round_1_selected_frequencies, round_2_selected_frequencies, round_1_nonselected_frequencies, round_2_nonselected_frequencies = get_pool_data(path, protein_concentrations)
 
     logK_sequences_r1 = []
     logK_mutations_r1 = []
@@ -177,8 +313,8 @@ def logK_inference(path : str, protein_concentrations : list, c : float, lambda_
         for j in range(len(protein_concentrations)):
             protein_concentration_2 = protein_concentrations[j]
             print(f"Pool {protein_concentration_1}, {protein_concentration_2}:")
-            logK_sequences_r1.append(infer_logK_sequences(round_1_initial_frequencies[i*len(protein_concentrations) + j], round_1_selected_frequencies[i*len(protein_concentrations) + j], round_1_nonselected_frequencies[i*len(protein_concentrations) + j], protein_concentration_1, c, number_sequences))
-            logK_sequences_r2.append(infer_logK_sequences(round_2_initial_frequencies[i*len(protein_concentrations) + j], round_2_selected_frequencies[i*len(protein_concentrations) + j], round_2_nonselected_frequencies[i*len(protein_concentrations) + j], protein_concentration_2, c, number_sequences))
+            logK_sequences_r1.append(infer_logK_sequences(round_1_sequences[i*len(protein_concentrations) + j], round_1_initial_frequencies[i*len(protein_concentrations) + j], round_1_selected_frequencies[i*len(protein_concentrations) + j], round_1_nonselected_frequencies[i*len(protein_concentrations) + j], error_rates, protein_concentration_1, c, number_sequences, correction_method))
+            logK_sequences_r2.append(infer_logK_sequences(round_2_sequences[i*len(protein_concentrations) + j], round_2_initial_frequencies[i*len(protein_concentrations) + j], round_2_selected_frequencies[i*len(protein_concentrations) + j], round_2_nonselected_frequencies[i*len(protein_concentrations) + j], error_rates, protein_concentration_2, c, number_sequences, correction_method))
             mutation_r1, interaction_r1 = infer_logK_mutations(logK_sequences_r1[-1], round_1_sequences[i*len(protein_concentrations) + j], lambda_l1)
             mutation_r2, interaction_r2 = infer_logK_mutations(logK_sequences_r2[-1], round_2_sequences[i*len(protein_concentrations) + j], lambda_l1)
             logK_mutations_r1.append(mutation_r1)

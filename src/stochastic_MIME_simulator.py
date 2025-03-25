@@ -481,8 +481,9 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_inter
 
     print(f'simulating MIME for {name}')
 
-    # generate error rates as uniform draws between 0 and p_error over all positions
-    error_rates = np.random.uniform(0, p_error, sequence_length)
+    # generate error rates
+    mean_error = np.log(p_error)-(1/20)
+    error_rates = np.random.lognormal(mean_error, .1, sequence_length)
     print('error rates: ', error_rates)
 
     # generate wildtype error count matrix
@@ -517,5 +518,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_inter
     print('finished')
 
 if __name__ == '__main__':
-    main('discrete_errortest_L20_n100K', sequence_length=20, number_sequences=200000)
+    main('discrete_errortest_L7_n200K', sequence_length=7, p_state_change=1/7, p_error=1/14, number_sequences=200000)
 
