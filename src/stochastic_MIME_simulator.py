@@ -265,10 +265,14 @@ def pairwise_count(unique_sequences : np.ndarray, counts : np.ndarray, number_st
     return
 
 
-def infer_effects(single_site_counts_selected : np.ndarray, single_site_counts_non_selected : np.ndarray) -> np.ndarray:
+def infer_effects(single_site_counts_selected : np.ndarray, single_site_counts_non_selected : np.ndarray, error_rates : np.ndarray) -> np.ndarray:
+    # repeat error rates for each state to match the shape of the single site counts
+    error_rates = np.repeat(error_rates[np.newaxis, :], single_site_counts_selected.shape[0], axis=0)
+    error_rates = error_rates/(single_site_counts_selected.shape[0]-1)
+    error_rates[0,:] = 0
     # first divide both matrices by their first row (default state) elementwise
-    single_site_counts_selected = single_site_counts_selected / single_site_counts_selected[0]
-    single_site_counts_non_selected = single_site_counts_non_selected / single_site_counts_non_selected[0]
+    single_site_counts_selected = (single_site_counts_selected / single_site_counts_selected[0]) - error_rates
+    single_site_counts_non_selected = (single_site_counts_non_selected / single_site_counts_non_selected[0]) - error_rates
 
     # then divide the non-selected matrix by the selected matrix elementwise
     return single_site_counts_non_selected / single_site_counts_selected
@@ -313,7 +317,7 @@ def check_average_assumption(ground_truth : np.ndarray, single_site_effects : np
 
     return true_background, average_background, gmean_ratio
     
-def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray, number_sequences : int, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, p_error: float, output_path : str, pruning : int = 0) -> np.ndarray:
+def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray, number_sequences : int, relative_number_targets_1 : int, relative_number_targets_2 : int,p_state_change : float, p_error: np.ndarray, output_path : str, pruning : int = 0) -> np.ndarray:
     # get number_states and sequence length
     number_states, sequence_length = ground_truth.shape
     # save ground truth
@@ -357,34 +361,34 @@ def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray,
         pruned_non_selected = non_selected
 
     # compute single site counts
-    single_site_counts_selected = single_site_count(pruned_sequences, pruned_selected, number_states, sequence_length)
-    single_site_counts_non_selected = single_site_count(pruned_sequences, pruned_non_selected, number_states, sequence_length)
+    single_site_counts_selected = single_site_count(pruned_sequences, selected_counts_with_error, number_states, sequence_length)
+    single_site_counts_non_selected = single_site_count(pruned_sequences, non_selected_counts_with_error, number_states, sequence_length)
     # save single site counts
     np.savetxt(output_path + 'round_1/selected/single_site_counts.csv', single_site_counts_selected, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_1/non_selected/single_site_counts.csv', single_site_counts_non_selected, delimiter=',', fmt='%d')
 
     # compute pairwise counts
-    pairwise_count(pruned_sequences, pruned_selected, number_states, sequence_length, output_path + 'round_1/selected/pairwise_count.csv')
-    pairwise_count(pruned_sequences, pruned_non_selected, number_states, sequence_length, output_path + 'round_1/non_selected/pairwise_count.csv')
+    pairwise_count(pruned_sequences, selected_counts_with_error, number_states, sequence_length, output_path + 'round_1/selected/pairwise_count.csv')
+    pairwise_count(pruned_sequences, non_selected_counts_with_error, number_states, sequence_length, output_path + 'round_1/non_selected/pairwise_count.csv')
 
     # infer effects
-    effects = infer_effects(single_site_counts_selected, single_site_counts_non_selected)
+    effects = infer_effects(single_site_counts_selected, single_site_counts_non_selected, error_rates= p_error)
     # save effects
     # remove row 0 (default state), flatten and save
     np.savetxt(output_path + 'round_1/effects.csv', effects[1:].flatten('F'), delimiter=',', fmt='%f')
 
-    # check independence assumption
-    single_site_counts = single_site_count(unique_sequences, counts, number_states, sequence_length)
-    gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
-    # check average assumption
-    true_background, average_background, gmean_ratio = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
-    # create assupmtion directory
-    os.makedirs(output_path + 'round_1/assumptions', exist_ok=True)
-    # save gmean_effects, true_background and average_background
-    np.savetxt(output_path + 'round_1/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
-    np.savetxt(output_path + 'round_1/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
-    np.savetxt(output_path + 'round_1/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
-    np.savetxt(output_path + 'round_1/assumptions/gmean_ratio.csv', gmean_ratio, delimiter=',', fmt='%f')
+    # # check independence assumption
+    # single_site_counts = single_site_count(unique_sequences, counts, number_states, sequence_length)
+    # gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
+    # # check average assumption
+    # true_background, average_background, gmean_ratio = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
+    # # create assupmtion directory
+    # os.makedirs(output_path + 'round_1/assumptions', exist_ok=True)
+    # # save gmean_effects, true_background and average_background
+    # np.savetxt(output_path + 'round_1/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
+    # np.savetxt(output_path + 'round_1/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
+    # np.savetxt(output_path + 'round_1/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
+    # np.savetxt(output_path + 'round_1/assumptions/gmean_ratio.csv', gmean_ratio, delimiter=',', fmt='%f')
 
     # enrich non-selected pool to be the same number as the initial pool
     enriched_non_selected_counts = np.round(non_selected * number_sequences / np.sum(non_selected)).astype(int)
@@ -424,33 +428,33 @@ def simulate_dm_MIME(ground_truth : np.ndarray, interaction_matrix : np.ndarray,
         pruned_non_selected = non_selected
 
     # compute single site counts
-    single_site_counts_selected = single_site_count(pruned_sequences, pruned_selected, number_states, sequence_length)
-    single_site_counts_non_selected = single_site_count(pruned_sequences, pruned_non_selected, number_states, sequence_length)
+    single_site_counts_selected = single_site_count(pruned_sequences, selected_counts_with_error, number_states, sequence_length)
+    single_site_counts_non_selected = single_site_count(pruned_sequences, non_selected_counts_with_error, number_states, sequence_length)
     # save single site counts
     np.savetxt(output_path + 'round_2/selected/single_site_counts.csv', single_site_counts_selected, delimiter=',', fmt='%d')
     np.savetxt(output_path + 'round_2/non_selected/single_site_counts.csv', single_site_counts_non_selected, delimiter=',', fmt='%d')
 
     # compute pairwise counts
-    pairwise_count(pruned_sequences, pruned_selected, number_states, sequence_length, output_path + 'round_2/selected/pairwise_count.csv')
-    pairwise_count(pruned_sequences, pruned_non_selected, number_states, sequence_length, output_path + 'round_2/non_selected/pairwise_count.csv')
+    pairwise_count(pruned_sequences, selected_counts_with_error, number_states, sequence_length, output_path + 'round_2/selected/pairwise_count.csv')
+    pairwise_count(pruned_sequences, non_selected_counts_with_error, number_states, sequence_length, output_path + 'round_2/non_selected/pairwise_count.csv')
 
     # infer effects
-    effects = infer_effects(single_site_counts_selected, single_site_counts_non_selected)
+    effects = infer_effects(single_site_counts_selected, single_site_counts_non_selected, error_rates= p_error)
     # save effects
     np.savetxt(output_path + 'round_2/effects.csv', effects[1:].flatten('F'), delimiter=',', fmt='%f')
 
-    # check independence assumption
-    single_site_counts = single_site_count(unique_sequences, counts, number_states, sequence_length)
-    gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
-    # check average assumption
-    true_background, average_background, gmean_ratio = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
-    # create assupmtion directory
-    os.makedirs(output_path + 'round_2/assumptions', exist_ok=True)
-    # save gmean_effects, true_background and average_background
-    np.savetxt(output_path + 'round_2/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
-    np.savetxt(output_path + 'round_2/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
-    np.savetxt(output_path + 'round_2/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
-    np.savetxt(output_path + 'round_2/assumptions/gmean_ratio.csv', gmean_ratio, delimiter=',', fmt='%f')
+    # # check independence assumption
+    # single_site_counts = single_site_count(unique_sequences, counts, number_states, sequence_length)
+    # gmean_effects = check_independence_assumption(ground_truth, single_site_counts, sequence_effects, counts)
+    # # check average assumption
+    # true_background, average_background, gmean_ratio = check_average_assumption(ground_truth, effects, unique_sequences, sequence_effects, counts)
+    # # create assupmtion directory
+    # os.makedirs(output_path + 'round_2/assumptions', exist_ok=True)
+    # # save gmean_effects, true_background and average_background
+    # np.savetxt(output_path + 'round_2/assumptions/gmean_effects.csv', gmean_effects, delimiter=',', fmt='%f')
+    # np.savetxt(output_path + 'round_2/assumptions/true_background.csv', true_background, delimiter=',', fmt='%f')
+    # np.savetxt(output_path + 'round_2/assumptions/average_background.csv', average_background, delimiter=',', fmt='%f')
+    # np.savetxt(output_path + 'round_2/assumptions/gmean_ratio.csv', gmean_ratio, delimiter=',', fmt='%f')
 
     print('\tdone')
     return
@@ -518,5 +522,5 @@ def main(name :str, sequence_length : int = 20, number_states : int = 4, p_inter
     print('finished')
 
 if __name__ == '__main__':
-    main('discrete_errortest_L7_n200K', sequence_length=7, p_state_change=1/7, p_error=1/14, number_sequences=200000)
+    main('discrete_errortest_L7_n200K', sequence_length=7, p_state_change=1/7, p_error=1/14, number_sequences=300000)
 

@@ -85,7 +85,7 @@ def correct_sequencing_error(sequences : np.array, counts : np.array, error_rate
         
 
         # initial parameters are the observed counts
-        n_iter = 1000
+        n_iter = 100
         kappa = 10
         parameters = counts
         candidates = []
