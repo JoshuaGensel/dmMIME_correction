@@ -179,10 +179,6 @@ def align_reads_experimental(file_path_reads_left: str, file_path_reads_right: s
 
 
 
-# align_reads_experimental('./data/test_files/experimental/left.1.sam', './data/test_files/experimental/right.2.sam', './data/test_files/experimental/aligned_reads.txt', 536)
-
-
-# align_reads_simulator('./data/test_files/7.txt', './data/test_files/aligned_reads_bound.txt', 1/20, 7, 42)
-# align_reads_simulator('./data/test_files/8.txt', './data/test_files/aligned_reads_unbound.txt', 1/20, 7, 42)
+align_reads_experimental('./data/test_data/experimental/left.1.sam', './data/test_data/experimental/right.2.sam', './data/test_data/experimental/aligned_reads.txt', 535)
 
 
