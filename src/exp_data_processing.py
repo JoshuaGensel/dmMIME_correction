@@ -227,7 +227,13 @@ def encode_mutations(file_path_input: str, file_path_output: str, reference_sequ
     reference_sequence = reference_sequence[1]
 
     # only keep the significant positions in the reference sequence
-    reference_sequence = [reference_sequence[i] for i in significant_positions]
+    filtered_reference_sequence = ''
+    for i in range(len(reference_sequence)):
+        if i in significant_positions:
+            filtered_reference_sequence += reference_sequence[i]
+        else:
+            continue
+    reference_sequence = filtered_reference_sequence           
 
     # read in the aligned reads file
     with open(file_path_input, 'r') as aligned_reads_file:
@@ -241,10 +247,8 @@ def encode_mutations(file_path_input: str, file_path_output: str, reference_sequ
         # get the mutations in the read
         nucleotides = [aligned_reads[i][j] for j in range(len(aligned_reads[i]))]
         for position in range(len(nucleotides)):
-            if nucleotides[position] == 'N':
-                continue
             wildtype = reference_sequence[position]
-            if nucleotides[position] == wildtype:
+            if nucleotides[position] == wildtype or nucleotides[position] == 'N':
                 nucleotides[position] = '0'
             else:
                 # temporarily remove the wildtype from the order mutations list
@@ -253,8 +257,8 @@ def encode_mutations(file_path_input: str, file_path_output: str, reference_sequ
                 mutation_index = order_mutations.index(nucleotides[position])
                 # encode the mutation as 1, 2 or 3
                 nucleotides[position] = str(mutation_index + 1)
-                # add the wildtype back to the order mutations list
-                order_mutations.append(wildtype)
+                # add the wildtype back to the order mutations list at the correct position
+                order_mutations.insert(mutation_index, wildtype)
         # replace the nucleotides in the read with the encoded mutations
         aligned_reads[i] = ''.join(nucleotides)
     # write the encoded reads to the output file
@@ -291,7 +295,7 @@ def count_sequences(path_to_bound_encoded_seqs : str, path_to_unbound_encoded_se
     # count the number of times each sequence appears in the bound and unbound sequences
     bound_counts = []
     unbound_counts = []
-    for sequence in unique_sequences:
+    for sequence in tqdm(unique_sequences):
         bound_counts.append(bound_sequences.count(sequence))
         unbound_counts.append(unbound_sequences.count(sequence))
     
@@ -314,3 +318,18 @@ def count_sequences(path_to_bound_encoded_seqs : str, path_to_unbound_encoded_se
     return None
 
 # count_sequences('./data/test_data/experimental/aligned_reads_encoded_bound.txt', './data/test_data/experimental/aligned_reads_encoded_unbound.txt', './data/test_data/experimental')
+
+# align_reads_experimental('/datadisk/MIME/exp/expData/GAG_UB_8.1.sam', '/datadisk/MIME/exp/expData/GAG_UB_8.2.sam', './data/8_unbound_aligned_reads.txt', 535)
+
+# get significant position list
+significant_positions = np.loadtxt('/datadisk/MIME/exp/expData/sig_pos.txt', dtype='int').tolist()
+# print(f'Number of significant positions: {len(significant_positions)}')
+# print(significant_positions)
+
+# remove_non_significant_positions('./data/8_unbound_aligned_reads.txt', './data/8_unbound_aligned_reads_filtered.txt', significant_positions, 2)
+# remove_non_significant_positions('./data/8_bound_aligned_reads.txt', './data/8_bound_aligned_reads_filtered.txt', significant_positions, 2)
+
+# encode_mutations('./data/8_unbound_aligned_reads_filtered.txt', './data/8_unbound_aligned_reads_encoded.txt', '/datadisk/MIME/exp/expData/5NL43.fasta', significant_positions)
+# encode_mutations('./data/8_bound_aligned_reads_filtered.txt', './data/8_bound_aligned_reads_encoded.txt', '/datadisk/MIME/exp/expData/5NL43.fasta', significant_positions)
+
+count_sequences('./data/8_bound_aligned_reads_encoded.txt', './data/8_unbound_aligned_reads_encoded.txt', './data/8_counts')
