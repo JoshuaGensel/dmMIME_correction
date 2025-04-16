@@ -179,6 +179,138 @@ def align_reads_experimental(file_path_reads_left: str, file_path_reads_right: s
 
 
 
-align_reads_experimental('./data/test_data/experimental/left.1.sam', './data/test_data/experimental/right.2.sam', './data/test_data/experimental/aligned_reads.txt', 535)
+# align_reads_experimental('./data/test_data/experimental/left.1.sam', './data/test_data/experimental/right.2.sam', './data/test_data/experimental/aligned_reads.txt', 535)
+
+def remove_non_significant_positions(file_path_input: str, file_path_output: str, significant_positions : list, position_threshold: int ):
+    """
+    Remove non-significant positions from the aligned reads file. Then if a read has less than position_threshold positions identified (e.g. not '0'), remove the read from the file.
+    """
+    # read in the aligned reads file line by line
+    with open(file_path_input, 'r') as aligned_reads_file:
+        aligned_reads = aligned_reads_file.readlines()
+        # remove the new line character at the end of each line
+        aligned_reads = [read.strip() for read in aligned_reads]
+    # remove non-significant positions from the aligned reads
+    filtered_reads = []
+    for read in aligned_reads:
+        filtered_read = ''
+        for i in range(len(read)):
+            if i in significant_positions:
+                filtered_read += read[i]
+            else:
+                continue
+        filtered_reads.append(filtered_read)
+
+    # replace every '0' with 'N'
+    filtered_reads = [read.replace('0', 'N') for read in filtered_reads]
+    # remove reads with less than position_threshold positions identified
+    filtered_reads = [read for read in filtered_reads if len(re.findall(r'[^N]', read)) >= position_threshold]
+    # write the filtered reads to the output file
+    with open(file_path_output, 'w') as output_file:
+        for read in filtered_reads:
+            output_file.write(read + '\n')
+    return None
+
+# remove_non_significant_positions('./data/test_data/experimental/aligned_reads.txt', './data/test_data/experimental/aligned_reads_filtered.txt', [0, 1, 2, 3, 50,51,52, 500,501,502, 534],2)
+
+def encode_mutations(file_path_input: str, file_path_output: str, reference_sequence: str, significant_positions: list):
+    """
+    Encode mutations in the aligned reads file. The mutations are encoded as 1 for a mutation and 0 for no mutation. 
+    The reference sequence is used to identify the mutations.
+    """
+    # read in the reference sequence from second line of the fasta file
+    with open(reference_sequence, 'r') as reference_file:
+        reference_sequence = reference_file.readlines()
+        # remove the new line character at the end of each line
+        reference_sequence = [line.strip() for line in reference_sequence]
+    # remove the first line of the fasta file
+    reference_sequence = reference_sequence[1]
+
+    # only keep the significant positions in the reference sequence
+    reference_sequence = [reference_sequence[i] for i in significant_positions]
+
+    # read in the aligned reads file
+    with open(file_path_input, 'r') as aligned_reads_file:
+        aligned_reads = aligned_reads_file.readlines()
+        # remove the new line character at the end of each line
+        aligned_reads = [read.strip() for read in aligned_reads]
+    
+    order_mutations = ['A', 'C', 'G', 'T']
+    # encode wildtype as 0 and mutations as 1, 2 and 3 according to the order of the mutations
+    for i in range(len(aligned_reads)):
+        # get the mutations in the read
+        nucleotides = [aligned_reads[i][j] for j in range(len(aligned_reads[i]))]
+        for position in range(len(nucleotides)):
+            if nucleotides[position] == 'N':
+                continue
+            wildtype = reference_sequence[position]
+            if nucleotides[position] == wildtype:
+                nucleotides[position] = '0'
+            else:
+                # temporarily remove the wildtype from the order mutations list
+                order_mutations.remove(wildtype)
+                # get the index of the mutation in the order mutations list
+                mutation_index = order_mutations.index(nucleotides[position])
+                # encode the mutation as 1, 2 or 3
+                nucleotides[position] = str(mutation_index + 1)
+                # add the wildtype back to the order mutations list
+                order_mutations.append(wildtype)
+        # replace the nucleotides in the read with the encoded mutations
+        aligned_reads[i] = ''.join(nucleotides)
+    # write the encoded reads to the output file
+    with open(file_path_output, 'w') as output_file:
+        for read in aligned_reads:
+            output_file.write(read + '\n')
+    return None
+
+    
 
 
+# encode_mutations('./data/test_data/experimental/aligned_reads_filtered.txt', './data/test_data/experimental/aligned_reads_encoded.txt', './data/test_data/experimental/5NL43.fasta', [0, 1, 2, 3, 50,51,52, 500,501,502, 534])
+
+def count_sequences(path_to_bound_encoded_seqs : str, path_to_unbound_encoded_seqs : str, path_to_output : str):
+    """
+    Gets each unique sequence from the bound and unbound encoded sequences and counts the number of times each sequence appears as bound and unbound.
+    Then writes the unique sequences, the boudn and the unbound counts to separate files.
+    """
+
+    # read in the bound and unbound encoded sequences
+    with open(path_to_bound_encoded_seqs, 'r') as bound_file:
+        bound_sequences = bound_file.readlines()
+        # remove the new line character at the end of each line
+        bound_sequences = [read.strip() for read in bound_sequences]
+
+    with open(path_to_unbound_encoded_seqs, 'r') as unbound_file:
+        unbound_sequences = unbound_file.readlines()
+        # remove the new line character at the end of each line
+        unbound_sequences = [read.strip() for read in unbound_sequences]
+    
+    # get unique sequences
+    unique_sequences = set(bound_sequences + unbound_sequences)
+    
+    # count the number of times each sequence appears in the bound and unbound sequences
+    bound_counts = []
+    unbound_counts = []
+    for sequence in unique_sequences:
+        bound_counts.append(bound_sequences.count(sequence))
+        unbound_counts.append(unbound_sequences.count(sequence))
+    
+    # make output directory if it doesn't exist
+    os.makedirs(path_to_output + '/encoded_pool/', exist_ok=True)
+
+    # write the unique sequences, the boudn and the unbound counts to separate files
+    with open(path_to_output + '/encoded_pool/unique_sequences.txt', 'w') as output_file:
+        for sequence in unique_sequences:
+            output_file.write(sequence + '\n')
+    
+    with open(path_to_output + '/encoded_pool/bound_counts.txt', 'w') as output_file:
+        for count in bound_counts:
+            output_file.write(str(count) + '\n')
+    
+    with open(path_to_output + '/encoded_pool/unbound_counts.txt', 'w') as output_file:
+        for count in unbound_counts:
+            output_file.write(str(count) + '\n')
+
+    return None
+
+# count_sequences('./data/test_data/experimental/aligned_reads_encoded_bound.txt', './data/test_data/experimental/aligned_reads_encoded_unbound.txt', './data/test_data/experimental')
