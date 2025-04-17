@@ -332,4 +332,96 @@ significant_positions = np.loadtxt('/datadisk/MIME/exp/expData/sig_pos.txt', dty
 # encode_mutations('./data/8_unbound_aligned_reads_filtered.txt', './data/8_unbound_aligned_reads_encoded.txt', '/datadisk/MIME/exp/expData/5NL43.fasta', significant_positions)
 # encode_mutations('./data/8_bound_aligned_reads_filtered.txt', './data/8_bound_aligned_reads_encoded.txt', '/datadisk/MIME/exp/expData/5NL43.fasta', significant_positions)
 
-count_sequences('./data/8_bound_aligned_reads_encoded.txt', './data/8_unbound_aligned_reads_encoded.txt', './data/8_counts')
+# count_sequences('./data/8_bound_aligned_reads_encoded.txt', './data/8_unbound_aligned_reads_encoded.txt', './data/8_counts')
+
+def automated_parsing(data_directory : str, protein_concentrations : list, 
+                     position_threshold : int, path_to_reference_sequence : str, 
+                     significant_positions_file : str, output_directory : str):
+    """
+    Automates the parsing of experimental data. 
+    """
+    # make output directory if it doesn't exist
+    os.makedirs(output_directory, exist_ok=True)
+    
+    # get significant position list
+    significant_positions = np.loadtxt(significant_positions_file, dtype='int').tolist()
+
+    # get sequence length from reference sequence
+    with open(path_to_reference_sequence, 'r') as reference_file:
+        reference_sequence = reference_file.readlines()
+        # remove the new line character at the end of each line
+        reference_sequence = [line.strip() for line in reference_sequence]
+    # remove the first line of the fasta file
+    reference_sequence = reference_sequence[1]
+    sequence_length = len(reference_sequence)
+    print(f'Sequence length: {sequence_length}')
+    print(f'Number of significant positions: {len(significant_positions)}')
+    
+    # first round:
+    for concentration in protein_concentrations:
+        print(f'Processing concentration: {concentration}')
+        print('\tAligning reads...')
+        # align reads
+        align_reads_experimental(data_directory + f'/GAG_UB_{concentration}.1.sam', data_directory + f'/GAG_UB_{concentration}.2.sam', 
+                                 output_directory + f'/aligned_reads_{concentration}_unbound.txt', sequence_length)
+        align_reads_experimental(data_directory + f'/GAG_BO_{concentration}.1.sam', data_directory + f'/GAG_BO_{concentration}.2.sam',
+                                 output_directory + f'/aligned_reads_{concentration}_bound.txt', sequence_length)
+        print('\tFiltering reads...')
+        # remove non-significant positions
+        remove_non_significant_positions(output_directory + f'/aligned_reads_{concentration}_unbound.txt', 
+                                          output_directory + f'/aligned_reads_{concentration}_unbound_filtered.txt', 
+                                          significant_positions, position_threshold)
+        remove_non_significant_positions(output_directory + f'/aligned_reads_{concentration}_bound.txt',
+                                          output_directory + f'/aligned_reads_{concentration}_bound_filtered.txt', 
+                                          significant_positions, position_threshold)
+        print('\tEncoding reads...')
+        # encode mutations
+        encode_mutations(output_directory + f'/aligned_reads_{concentration}_unbound_filtered.txt', 
+                         output_directory + f'/aligned_reads_{concentration}_unbound_encoded.txt', 
+                         path_to_reference_sequence, significant_positions)
+        encode_mutations(output_directory + f'/aligned_reads_{concentration}_bound_filtered.txt',
+                         output_directory + f'/aligned_reads_{concentration}_bound_encoded.txt', 
+                         path_to_reference_sequence, significant_positions)
+        print('\tCounting sequences...')
+        # count sequences
+        count_sequences(output_directory + f'/aligned_reads_{concentration}_bound_encoded.txt', 
+                        output_directory + f'/aligned_reads_{concentration}_unbound_encoded.txt', 
+                        output_directory + f'/encoded_pool_{concentration}')
+        
+    # second round:
+    for concentration1 in protein_concentrations:
+        for concentration2 in protein_concentrations:
+            if concentration1 != concentration2:
+                print(f'Processing concentrations: {concentration1} and {concentration2}')
+                print('\tAligning reads...')
+                # align reads
+                align_reads_experimental(data_directory + f'/GAG_UB_{concentration1}_{concentration2}.1.sam', 
+                                         data_directory + f'/GAG_UB_{concentration1}_{concentration2}.2.sam', 
+                                         output_directory + f'/aligned_reads_{concentration1}_{concentration2}_unbound.txt', sequence_length)
+                align_reads_experimental(data_directory + f'/GAG_BO_{concentration1}_{concentration2}.1.sam',
+                                         data_directory + f'/GAG_BO_{concentration1}_{concentration2}.2.sam', 
+                                         output_directory + f'/aligned_reads_{concentration1}_{concentration2}_bound.txt', sequence_length)
+                print('\tFiltering reads...')
+                # remove non-significant positions
+                remove_non_significant_positions(output_directory + f'/aligned_reads_{concentration1}_{concentration2}_unbound.txt', 
+                                                  output_directory + f'/aligned_reads_{concentration1}_{concentration2}_unbound_filtered.txt', 
+                                                  significant_positions, position_threshold)
+                remove_non_significant_positions(output_directory + f'/aligned_reads_{concentration1}_{concentration2}_bound.txt',
+                                                  output_directory + f'/aligned_reads_{concentration1}_{concentration2}_bound_filtered.txt', 
+                                                  significant_positions, position_threshold)
+                print('\tEncoding reads...')
+                # encode mutations
+                encode_mutations(output_directory + f'/aligned_reads_{concentration1}_{concentration2}_unbound_filtered.txt', 
+                                 output_directory + f'/aligned_reads_{concentration1}_{concentration2}_unbound_encoded.txt', 
+                                 path_to_reference_sequence, significant_positions)
+                encode_mutations(output_directory + f'/aligned_reads_{concentration1}_{concentration2}_bound_filtered.txt',
+                                 output_directory + f'/aligned_reads_{concentration1}_{concentration2}_bound_encoded.txt', 
+                                 path_to_reference_sequence, significant_positions)
+                print('\tCounting sequences...')
+                # count sequences
+                count_sequences(output_directory + f'/aligned_reads_{concentration1}_{concentration2}_bound_encoded.txt', 
+                                output_directory + f'/aligned_reads_{concentration1}_{concentration2}_unbound_encoded.txt', 
+                                output_directory + f'/encoded_pool_{concentration1}_{concentration2}')
+    return None
+
+automated_parsing('/datadisk/MIME/exp/expData', [8, 40, 200, 1000], 2, '/datadisk/MIME/exp/expData/5NL43.fasta', '/datadisk/MIME/exp/expData/sig_pos.txt', '/datadisk/MIME/exp/expData/parsed_data')
