@@ -229,7 +229,7 @@ def encode_mutations(file_path_input: str, file_path_output: str, reference_sequ
     # only keep the significant positions in the reference sequence
     filtered_reference_sequence = ''
     for i in range(len(reference_sequence)):
-        if i in significant_positions:
+        if i + 1 in significant_positions:
             filtered_reference_sequence += reference_sequence[i]
         else:
             continue
@@ -291,6 +291,9 @@ def count_sequences(path_to_bound_encoded_seqs : str, path_to_unbound_encoded_se
     
     # get unique sequences
     unique_sequences = set(bound_sequences + unbound_sequences)
+
+    # sort the unique sequences
+    unique_sequences = sorted(unique_sequences)
     
     # count the number of times each sequence appears in the bound and unbound sequences
     bound_counts = []
@@ -342,6 +345,9 @@ def automated_parsing(data_directory : str, protein_concentrations : list,
     """
     # make output directory if it doesn't exist
     os.makedirs(output_directory, exist_ok=True)
+    # make round 1 and round 2 directories if they don't exist
+    os.makedirs(output_directory + '/round1', exist_ok=True)
+    os.makedirs(output_directory + '/round2', exist_ok=True)
     
     # get significant position list
     significant_positions = np.loadtxt(significant_positions_file, dtype='int').tolist()
@@ -423,7 +429,7 @@ def automated_parsing(data_directory : str, protein_concentrations : list,
                             output_directory + '/round2' + f'/encoded_pool_{concentration1}_{concentration2}')
     return None
 
-# automated_parsing('/datadisk/MIME/exp/expData', [8, 40, 200, 1000], 2, '/datadisk/MIME/exp/expData/5NL43.fasta', '/datadisk/MIME/exp/expData/sig_pos.txt', '/datadisk/MIME/exp/expData/parsed_data')
+automated_parsing('/datadisk/MIME/exp/expData', [8, 40, 200, 1000], 2, '/datadisk/MIME/exp/expData/5NL43.fasta', '/datadisk/MIME/exp/expData/sig_pos.txt', '/datadisk/MIME/exp/expData/parsed_data')
 
 align_reads_experimental('/datadisk/MIME/exp/expData/GAG_Wt.1.sam', '/datadisk/MIME/exp/expData/GAG_Wt.2.sam', '/datadisk/MIME/exp/expData/aligned_reads_Wt.txt', 535)
 remove_non_significant_positions('/datadisk/MIME/exp/expData/aligned_reads_Wt.txt', '/datadisk/MIME/exp/expData/aligned_reads_Wt_filtered.txt', significant_positions, 2)
