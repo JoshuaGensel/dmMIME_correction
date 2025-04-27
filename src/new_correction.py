@@ -7,7 +7,7 @@ path = '/datadisk/MIME/deterministic_prob_test/'
 protein_concentrations = [0.1, 1, 10]
 c = 0.0001
 
-def get_pool_data(path : str, protein_concentrations : list):
+def get_pool_data_sim(path : str, protein_concentrations : list):
 
     round_1_sequences = []
     round_2_sequences = []
@@ -38,6 +38,37 @@ def get_pool_data(path : str, protein_concentrations : list):
             round_2_nonselected_frequencies.append(np.loadtxt(path + f"target1_{protein_concentration_1}_target2_{protein_concentration_2}/round_2/non_selected/counts_with_error.csv", delimiter=","))
 
     return single_effects, interactions, error_rates, round_1_sequences, round_2_sequences, round_1_sequence_effects, round_2_sequence_effects, round_1_initial_frequencies, round_2_initial_frequencies, round_1_selected_frequencies, round_2_selected_frequencies, round_1_nonselected_frequencies, round_2_nonselected_frequencies
+
+def get_pool_data_exp(path : str, protein_concentrations : list):
+
+    round_2_sequences = []
+    round_2_selected_frequencies = []
+    round_2_nonselected_frequencies = []
+    round_2_initial_frequencies = []
+
+    error_rates = np.loadtxt(path + "encoded_wt_mean_error_probs.txt")
+    significant_positions = np.loadtxt(path + "sig_pos.txt")
+    data_path = path + "parsed_data/round2/"
+
+    for protein_concentration_1 in protein_concentrations:
+        for protein_concentration_2 in protein_concentrations:
+            round_2_sequences.append(np.genfromtxt(data_path + f"encoded_pool_{protein_concentration_1}_{protein_concentration_2}/encoded_pool/unique_sequences.txt", delimiter=1))
+
+            nonselected_frequencies = np.loadtxt(data_path + f"encoded_pool_{protein_concentration_1}_{protein_concentration_2}/encoded_pool/unbound_counts.txt")
+            round_2_nonselected_frequencies.append(nonselected_frequencies)
+            
+            selected_frequencies = np.loadtxt(data_path + f"encoded_pool_{protein_concentration_1}_{protein_concentration_2}/encoded_pool/bound_counts.txt")
+            round_2_selected_frequencies.append(selected_frequencies)
+            
+            # initial frequencies are the sum of the selected and nonselected frequencies
+            initial_frequencies = np.sum([selected_frequencies, nonselected_frequencies], axis=0)
+            round_2_initial_frequencies.append(initial_frequencies)
+            
+    return round_2_sequences, round_2_initial_frequencies, round_2_selected_frequencies, round_2_nonselected_frequencies, error_rates, significant_positions
+
+
+# get_pool_data_exp('/datadisk/MIME/exp/expData/', [8])
+
 
 
 def correct_sequencing_error(sequences : np.array, counts : np.array, error_rates : np.array, number_states : int = 4, method : str = 'sampling'):
@@ -168,7 +199,7 @@ def correct_sequencing_error(sequences : np.array, counts : np.array, error_rate
     elif method == 'none':
         return counts
 
-def infer_logK_sequences(unique_sequences: np.array, initial_frequencies: np.array, selected_frequencies_w_error: np.array, nonselected_frequencies_w_error: np.array, error_rates : np.array, protein_concentration: float, c: float, number_sequences: int = 1, correction_method: str = 'sampling'):
+def infer_logK_sequences(unique_sequences: np.array, initial_frequencies: np.array, selected_frequencies_w_error: np.array, nonselected_frequencies_w_error: np.array, error_rates : np.array, protein_concentration: float, c: float, correction_method: str = 'sampling'):
 
     # correct selected and nonselected frequencies
     selected_frequencies = correct_sequencing_error(unique_sequences, selected_frequencies_w_error, error_rates, method=correction_method)
@@ -180,7 +211,7 @@ def infer_logK_sequences(unique_sequences: np.array, initial_frequencies: np.arr
     # get indices where selected frequency or initial frequency - selected frequency is less than c
     prune_indices = np.where((selected_frequencies < c) | (nonselected_frequencies < c))
     # print number of pruned sequences
-    print(f"\tPruned {np.sum(initial_frequencies[prune_indices])} sequences")
+    print(f"\tPruned {np.sum(initial_frequencies[prune_indices])} of {np.sum(initial_frequencies)} sequences")
     # set these indices to nan
     selected_frequencies[prune_indices] = np.nan
     initial_frequencies[prune_indices] = np.nan
@@ -273,7 +304,7 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array,
     for i in range(number_interactions):
         bounds.append((-2, 2))
     #solve optimization problem
-    result = sp.optimize.minimize(objective, x0, bounds=bounds, method='L-BFGS-B', options={'maxfun': 1000000, 'maxiter': 1000000})
+    result = sp.optimize.minimize(objective, x0, bounds=bounds, method='L-BFGS-B', options={'maxfun': 1000000, 'maxiter': 10000})
     result.x[nan_indices] = np.nan
 
     print("\t" + result.message)
@@ -297,9 +328,9 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array,
 
     return single_effects, interactions
 
-def logK_inference(path : str, protein_concentrations : list, c : float, lambda_l1 : float = 0.001, number_sequences: int = 1, correction_method: str = 'sampling'):
+def logK_inference_sim(path : str, protein_concentrations : list, c : float, lambda_l1 : float = 0.001, correction_method: str = 'sampling'):
 
-    single_effects, interctions, error_rates, round_1_sequences, round_2_sequences, round_1_sequence_effects, round_2_sequence_effects, round_1_initial_frequencies, round_2_initial_frequencies, round_1_selected_frequencies, round_2_selected_frequencies, round_1_nonselected_frequencies, round_2_nonselected_frequencies = get_pool_data(path, protein_concentrations)
+    single_effects, interctions, error_rates, round_1_sequences, round_2_sequences, round_1_sequence_effects, round_2_sequence_effects, round_1_initial_frequencies, round_2_initial_frequencies, round_1_selected_frequencies, round_2_selected_frequencies, round_1_nonselected_frequencies, round_2_nonselected_frequencies = get_pool_data_sim(path, protein_concentrations)
 
     logK_sequences_r1 = []
     logK_mutations_r1 = []
@@ -313,8 +344,8 @@ def logK_inference(path : str, protein_concentrations : list, c : float, lambda_
         for j in range(len(protein_concentrations)):
             protein_concentration_2 = protein_concentrations[j]
             print(f"Pool {protein_concentration_1}, {protein_concentration_2}:")
-            logK_sequences_r1.append(infer_logK_sequences(round_1_sequences[i*len(protein_concentrations) + j], round_1_initial_frequencies[i*len(protein_concentrations) + j], round_1_selected_frequencies[i*len(protein_concentrations) + j], round_1_nonselected_frequencies[i*len(protein_concentrations) + j], error_rates, protein_concentration_1, c, number_sequences, correction_method))
-            logK_sequences_r2.append(infer_logK_sequences(round_2_sequences[i*len(protein_concentrations) + j], round_2_initial_frequencies[i*len(protein_concentrations) + j], round_2_selected_frequencies[i*len(protein_concentrations) + j], round_2_nonselected_frequencies[i*len(protein_concentrations) + j], error_rates, protein_concentration_2, c, number_sequences, correction_method))
+            logK_sequences_r1.append(infer_logK_sequences(round_1_sequences[i*len(protein_concentrations) + j], round_1_initial_frequencies[i*len(protein_concentrations) + j], round_1_selected_frequencies[i*len(protein_concentrations) + j], round_1_nonselected_frequencies[i*len(protein_concentrations) + j], error_rates, protein_concentration_1, c, correction_method))
+            logK_sequences_r2.append(infer_logK_sequences(round_2_sequences[i*len(protein_concentrations) + j], round_2_initial_frequencies[i*len(protein_concentrations) + j], round_2_selected_frequencies[i*len(protein_concentrations) + j], round_2_nonselected_frequencies[i*len(protein_concentrations) + j], error_rates, protein_concentration_2, c, correction_method))
             mutation_r1, interaction_r1 = infer_logK_mutations(logK_sequences_r1[-1], round_1_sequences[i*len(protein_concentrations) + j], lambda_l1)
             mutation_r2, interaction_r2 = infer_logK_mutations(logK_sequences_r2[-1], round_2_sequences[i*len(protein_concentrations) + j], lambda_l1)
             logK_mutations_r1.append(mutation_r1)
@@ -323,3 +354,24 @@ def logK_inference(path : str, protein_concentrations : list, c : float, lambda_
             interactions_r2.append(interaction_r2)
 
     return logK_sequences_r1, logK_mutations_r1, interactions_r1, logK_sequences_r2, logK_mutations_r2, interactions_r2, single_effects, interctions, round_1_sequence_effects, round_2_sequence_effects
+
+def logK_inference_exp(path : str, protein_concentrations : list, c : float, lambda_l1 : float = 0.001, correction_method: str = 'sampling'):
+
+    round_2_sequences, round_2_initial_frequencies, round_2_selected_frequencies, round_2_nonselected_frequencies, error_rates, significant_positions = get_pool_data_exp(path, protein_concentrations)
+
+    logK_sequences_r2 = []
+    logK_mutations_r2 = []
+    interactions_r2 = []
+
+    for i in range(len(protein_concentrations)):
+        protein_concentration_1 = protein_concentrations[i]
+        for j in range(len(protein_concentrations)):
+            protein_concentration_2 = protein_concentrations[j]
+            print(f"Pool {protein_concentration_1}, {protein_concentration_2}:")
+            logK_sequences_r2.append(infer_logK_sequences(round_2_sequences[i*len(protein_concentrations) + j], round_2_initial_frequencies[i*len(protein_concentrations) + j], round_2_selected_frequencies[i*len(protein_concentrations) + j], round_2_nonselected_frequencies[i*len(protein_concentrations) + j], error_rates, protein_concentration_2, c, correction_method))
+            mutation_r2, interaction_r2 = infer_logK_mutations(logK_sequences_r2[-1], round_2_sequences[i*len(protein_concentrations) + j], lambda_l1)
+            logK_mutations_r2.append(mutation_r2)
+            interactions_r2.append(interaction_r2)
+
+    return logK_sequences_r2, logK_mutations_r2, interactions_r2, significant_positions
+
