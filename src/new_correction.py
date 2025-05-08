@@ -304,7 +304,7 @@ def infer_logK_mutations(logK_sequences : np.array, unique_sequences : np.array,
     for i in range(number_interactions):
         bounds.append((-2, 2))
     #solve optimization problem
-    result = sp.optimize.minimize(objective, x0, bounds=bounds, method='L-BFGS-B', options={'maxfun': 1000000, 'maxiter': 10000})
+    result = sp.optimize.minimize(objective, x0, bounds=bounds, method='L-BFGS-B', options={'maxfun': 1000000, 'maxiter': 100000})
     result.x[nan_indices] = np.nan
 
     print("\t" + result.message)
@@ -355,7 +355,7 @@ def logK_inference_sim(path : str, protein_concentrations : list, c : float, lam
 
     return logK_sequences_r1, logK_mutations_r1, interactions_r1, logK_sequences_r2, logK_mutations_r2, interactions_r2, single_effects, interctions, round_1_sequence_effects, round_2_sequence_effects
 
-def logK_inference_exp(path : str, protein_concentrations : list, c : float, lambda_l1 : float = 0.001, correction_method: str = 'sampling'):
+def logK_inference_exp(path : str, protein_concentrations : list, c : float, usable_pools : list, lambda_l1 : float = 0.001, correction_method: str = 'sampling'):
 
     round_2_sequences, round_2_initial_frequencies, round_2_selected_frequencies, round_2_nonselected_frequencies, error_rates, significant_positions = get_pool_data_exp(path, protein_concentrations)
 
@@ -367,6 +367,8 @@ def logK_inference_exp(path : str, protein_concentrations : list, c : float, lam
         protein_concentration_1 = protein_concentrations[i]
         for j in range(len(protein_concentrations)):
             protein_concentration_2 = protein_concentrations[j]
+            if f'{protein_concentration_1}_{protein_concentration_2}' not in usable_pools:
+                continue
             print(f"Pool {protein_concentration_1}, {protein_concentration_2}:")
             logK_sequences_r2.append(infer_logK_sequences(round_2_sequences[i*len(protein_concentrations) + j], round_2_initial_frequencies[i*len(protein_concentrations) + j], round_2_selected_frequencies[i*len(protein_concentrations) + j], round_2_nonselected_frequencies[i*len(protein_concentrations) + j], error_rates, protein_concentration_2, c, correction_method))
             mutation_r2, interaction_r2 = infer_logK_mutations(logK_sequences_r2[-1], round_2_sequences[i*len(protein_concentrations) + j], lambda_l1)
