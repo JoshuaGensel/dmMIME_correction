@@ -199,7 +199,7 @@ def correct_sequencing_error(sequences : np.array, counts : np.array, error_rate
     elif method == 'none':
         return counts
 
-def infer_logK_sequences(unique_sequences: np.array, initial_frequencies: np.array, selected_frequencies_w_error: np.array, nonselected_frequencies_w_error: np.array, error_rates : np.array, protein_concentration: float, c: float, correction_method: str = 'sampling'):
+def infer_logK_sequences(unique_sequences: np.array, initial_frequencies: np.array, selected_frequencies_w_error: np.array, nonselected_frequencies_w_error: np.array, error_rates : np.array, protein_concentration: float, c: float, correction_method: str = 'sampling', max_mutations: int = 2):
 
     # correct selected and nonselected frequencies
     selected_frequencies = correct_sequencing_error(unique_sequences, selected_frequencies_w_error, error_rates, method=correction_method)
@@ -209,7 +209,11 @@ def infer_logK_sequences(unique_sequences: np.array, initial_frequencies: np.arr
     free_protein_concentration = selected_frequencies[0]/(nonselected_frequencies[0])       #total_protein_concentration - np.sum(selected_frequencies/number_sequences)
 
     # get indices where selected frequency or initial frequency - selected frequency is less than c
-    prune_indices = np.where((selected_frequencies < c) | (nonselected_frequencies < c))
+    prune_indices_c = np.where((selected_frequencies < c) | (nonselected_frequencies < c))
+    # get indices where number of mutations (nonzero elements) is greater than max_mutations
+    prune_indices_m = np.where(np.sum(unique_sequences != 0, axis=1) > max_mutations)
+    # combine indices
+    prune_indices = np.unique(np.concatenate((prune_indices_c[0], prune_indices_m[0])))
     # print number of pruned sequences
     print(f"\tPruned {np.sum(initial_frequencies[prune_indices])} of {np.sum(initial_frequencies)} sequences")
     # set these indices to nan
@@ -363,6 +367,8 @@ def logK_inference_exp(path : str, protein_concentrations : list, c : float, usa
     logK_mutations_r2 = []
     interactions_r2 = []
 
+    savepath = f'/datadisk/MIME/exp/expData/Inference_c_{c}_lambda_{lambda_l1}_{correction_method}/'
+
     for i in range(len(protein_concentrations)):
         protein_concentration_1 = protein_concentrations[i]
         for j in range(len(protein_concentrations)):
@@ -374,6 +380,10 @@ def logK_inference_exp(path : str, protein_concentrations : list, c : float, usa
             mutation_r2, interaction_r2 = infer_logK_mutations(logK_sequences_r2[-1], round_2_sequences[i*len(protein_concentrations) + j], lambda_l1)
             logK_mutations_r2.append(mutation_r2)
             interactions_r2.append(interaction_r2)
+            # save logK sequences, mutations and interactions
+            np.savez(f"{savepath}logK_sequences_{protein_concentration_1}_{protein_concentration_2}.npz", logK_sequences=logK_sequences_r2[-1])
+            np.savez(f"{savepath}logK_mutations_{protein_concentration_1}_{protein_concentration_2}.npz", logK_mutations=logK_mutations_r2[-1])
+            np.savez(f"{savepath}interactions_{protein_concentration_1}_{protein_concentration_2}.npz", interactions=interactions_r2[-1])
 
     return logK_sequences_r2, logK_mutations_r2, interactions_r2, significant_positions
 
