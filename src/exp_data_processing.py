@@ -429,8 +429,8 @@ def automated_parsing(data_directory : str, protein_concentrations : list,
                             output_directory + '/round2' + f'/encoded_pool_{concentration1}_{concentration2}')
     return None
 
-automated_parsing('/datadisk/MIME/exp/expData', [8, 40, 200, 1000], 2, '/datadisk/MIME/exp/expData/5NL43.fasta', '/datadisk/MIME/exp/expData/sig_pos.txt', '/datadisk/MIME/exp/expData/parsed_data')
+automated_parsing('/datadisk/MIME/exp/expData', [8, 40, 200, 1000], 2, '/datadisk/MIME/exp/expData/5NL43.fasta', '/datadisk/MIME/exp/expData/sig_pos2.txt', '/datadisk/MIME/exp/expData/parsed_data2')
 
-align_reads_experimental('/datadisk/MIME/exp/expData/GAG_Wt.1.sam', '/datadisk/MIME/exp/expData/GAG_Wt.2.sam', '/datadisk/MIME/exp/expData/aligned_reads_Wt.txt', 535)
-remove_non_significant_positions('/datadisk/MIME/exp/expData/aligned_reads_Wt.txt', '/datadisk/MIME/exp/expData/aligned_reads_Wt_filtered.txt', significant_positions, 2)
-encode_mutations('/datadisk/MIME/exp/expData/aligned_reads_Wt_filtered.txt', '/datadisk/MIME/exp/expData/aligned_reads_Wt_encoded.txt', '/datadisk/MIME/exp/expData/5NL43.fasta', significant_positions)
+# align_reads_experimental('/datadisk/MIME/exp/expData/GAG_Wt.1.sam', '/datadisk/MIME/exp/expData/GAG_Wt.2.sam', '/datadisk/MIME/exp/expData/aligned_reads_Wt.txt', 535)
+# remove_non_significant_positions('/datadisk/MIME/exp/expData/aligned_reads_Wt.txt', '/datadisk/MIME/exp/expData/aligned_reads_Wt_filtered.txt', significant_positions, 2)
+# encode_mutations('/datadisk/MIME/exp/expData/aligned_reads_Wt_filtered.txt', '/datadisk/MIME/exp/expData/aligned_reads_Wt_encoded.txt', '/datadisk/MIME/exp/expData/5NL43.fasta', significant_positions)

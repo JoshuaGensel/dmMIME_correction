@@ -47,8 +47,8 @@ def get_pool_data_exp(path : str, protein_concentrations : list):
     round_2_initial_frequencies = []
 
     error_rates = np.loadtxt(path + "encoded_wt_mean_error_probs.txt")
-    significant_positions = np.loadtxt(path + "sig_pos.txt")
-    data_path = path + "parsed_data/round2/"
+    significant_positions = np.loadtxt(path + "sig_pos2.txt")
+    data_path = path + "parsed_data2/round2/"
 
     for protein_concentration_1 in protein_concentrations:
         for protein_concentration_2 in protein_concentrations:
@@ -368,6 +368,9 @@ def logK_inference_exp(path : str, protein_concentrations : list, c : float, usa
     interactions_r2 = []
 
     savepath = f'/datadisk/MIME/exp/expData/Inference_c_{c}_lambda_{lambda_l1}_{correction_method}/'
+    # create directory
+    import os
+    os.makedirs(savepath, exist_ok=True)
 
     for i in range(len(protein_concentrations)):
         protein_concentration_1 = protein_concentrations[i]
