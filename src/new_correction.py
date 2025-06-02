@@ -47,8 +47,8 @@ def get_pool_data_exp(path : str, protein_concentrations : list):
     round_2_initial_frequencies = []
 
     error_rates = np.loadtxt(path + "encoded_wt_mean_error_probs.txt")
-    significant_positions = np.loadtxt(path + "sig_pos2.txt")
-    data_path = path + "parsed_data2/round2/"
+    significant_positions = np.loadtxt(path + "sig_pos.txt")
+    data_path = path + "parsed_data/round2/"
 
     for protein_concentration_1 in protein_concentrations:
         for protein_concentration_2 in protein_concentrations:
@@ -199,17 +199,23 @@ def correct_sequencing_error(sequences : np.array, counts : np.array, error_rate
     elif method == 'none':
         return counts
 
-def infer_logK_sequences(unique_sequences: np.array, initial_frequencies: np.array, selected_frequencies_w_error: np.array, nonselected_frequencies_w_error: np.array, error_rates : np.array, protein_concentration: float, c: float, correction_method: str = 'sampling', max_mutations: int = 2):
+def infer_logK_sequences(unique_sequences: np.array, initial_frequencies: np.array, selected_frequencies_w_error: np.array, nonselected_frequencies_w_error: np.array, error_rates : np.array, protein_concentration: float, c: float, correction_method: str = 'sampling', max_mutations: int = 3):
 
     # correct selected and nonselected frequencies
     selected_frequencies = correct_sequencing_error(unique_sequences, selected_frequencies_w_error, error_rates, method=correction_method)
     nonselected_frequencies = correct_sequencing_error(unique_sequences, nonselected_frequencies_w_error, error_rates, method=correction_method)
 
+    # constant added to avoid division by zero
+    constant = .0001
+    selected_frequencies = np.maximum(selected_frequencies, constant)
+    nonselected_frequencies = np.maximum(nonselected_frequencies, constant)
+    initial_frequencies = np.maximum(initial_frequencies, constant)
+
     # compute free protein concentration
     free_protein_concentration = selected_frequencies[0]/(nonselected_frequencies[0])       #total_protein_concentration - np.sum(selected_frequencies/number_sequences)
 
     # get indices where selected frequency or initial frequency - selected frequency is less than c
-    prune_indices_c = np.where((selected_frequencies < c) | (nonselected_frequencies < c))
+    prune_indices_c = np.where((selected_frequencies < c) & (nonselected_frequencies < c))
     # get indices where number of mutations (nonzero elements) is greater than max_mutations
     prune_indices_m = np.where(np.sum(unique_sequences != 0, axis=1) > max_mutations)
     # combine indices
